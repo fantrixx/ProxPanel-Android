@@ -1,22 +1,24 @@
 # ProxPanel Android
 
-Native Android client for [ProxPanel](https://github.com/fantrixx/ProxmoxWebApp) — manage Proxmox VE containers and VMs from your phone.
+Native Android client for Proxmox VE — same core workflow as [ProxPanel web](https://github.com/fantrixx/ProxmoxWebApp), talking **directly** to the Proxmox API.
 
 **Version:** 1.0.0
 
-## What it does
+## Features
 
-- Sign in against your **ProxPanel** server (same session API as the web UI)
-- Browse CTs / VMs with live CPU & RAM
-- Filter, search, pull-to-refresh
-- Guest detail: metrics, copy/open IP, start / shut down / reboot / force stop
-- Android Autofill / 1Password friendly login fields
-- Works with HTTP LAN installs and self-signed TLS (optional verify toggle)
+- **Overview** — CTs/VMs with live CPU/RAM, search, filters, power icons, quick backup, create FAB
+- **Create guest** — simple CT/VM wizard (node, VMID, template/ISO, disk, password, advanced CPU/RAM/bridge)
+- **Guest detail** — metrics, IPs, power, snapshots, backups (mode/compress/restore/delete), resource edit, console link
+- **Backups** — overview with format/size/location, detail dialog, start with mode/compress, restore & delete
+- **Storage** — nodes + storage utilization
+- **Tasks** — recent cluster/node tasks
+- **Media** — ISO and LXC template inventory
+- **Apps** — community-scripts marketplace (copy install command)
 
 ## Requirements
 
 - Android 8.0+ (API 26)
-- A running ProxPanel instance (e.g. `http://<ct-ip>:3000`)
+- Reachable Proxmox VE (`https://<host>:8006`, port is defaulted if omitted)
 - Android Studio Ladybug+ (or compatible) to build
 
 ## Build
@@ -25,24 +27,20 @@ Native Android client for [ProxPanel](https://github.com/fantrixx/ProxmoxWebApp)
 ./gradlew :app:assembleDebug
 ```
 
-Install the APK from `app/build/outputs/apk/debug/`.
-
-Or open this folder in Android Studio → Run.
-
-## Sign-in fields
+## Sign-in
 
 | Field | Meaning |
 |-------|---------|
-| **ProxPanel URL** | Your ProxPanel web app, e.g. `http://192.168.1.50:3000` |
-| **Proxmox server** | The Proxmox API URL ProxPanel should use, e.g. `https://192.168.1.10:8006` |
-| **Username / password / realm** | Same as the ProxPanel web login |
+| **Proxmox server** | e.g. `192.168.1.10` or `https://192.168.1.10:8006` |
+| **Username / password / realm** | Same as Proxmox web UI |
+| **Verify TLS** | Off for typical self-signed lab certs |
 
-The app talks only to ProxPanel’s `/api/*` endpoints (cookie session), not to Proxmox directly.
+## Not yet (web-only / heavier)
 
-## Feature sync with the web app
-
-This is a **separate native frontend**. New ProxPanel web features need a matching Android screen/API call here. Shared contract = ProxPanel HTTP API.
+- Interactive xterm console (opens Proxmox noVNC URL instead)
+- Guest logos / icon picker, media upload, CD/DVD attach UI
+- Server-side power/backup schedules (ProxPanel `.env` token runner)
 
 ## License
 
-Same spirit as ProxPanel — personal / homelab use. Not affiliated with Proxmox Server Solutions GmbH.
+Personal / homelab use. Not affiliated with Proxmox Server Solutions GmbH.

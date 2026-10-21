@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.proxpanel.app.data.ApiClient
 import com.proxpanel.app.data.ApiException
+import com.proxpanel.app.data.CredentialStore
 import com.proxpanel.app.data.LoginPrefs
 import com.proxpanel.app.data.SessionStore
 import com.proxpanel.app.util.normalizeBaseUrl
@@ -16,13 +17,12 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 data class LoginUiState(
-    val panelBaseUrl: String = "",
     val proxmoxHost: String = "",
     val username: String = "",
     val password: String = "",
     val realm: String = "pam",
     val verifyTls: Boolean = false,
-    val connectionOpen: Boolean = true,
+    val rememberCredentials: Boolean = true,
     val pending: Boolean = false,
     val error: String? = null,
     val signedIn: Boolean = false,
@@ -32,6 +32,7 @@ data class LoginUiState(
 class LoginViewModel(
     private val api: ApiClient,
     private val sessionStore: SessionStore,
+    private val credentialStore: CredentialStore,
 ) : ViewModel() {
     private val _state = MutableStateFlow(LoginUiState())
     val state: StateFlow<LoginUiState> = _state.asStateFlow()
@@ -39,23 +40,32 @@ class LoginViewModel(
     init {
         viewModelScope.launch {
             val prefs = sessionStore.loginPrefs.first()
-            val cookie = sessionStore.sessionCookie.first()
+            val auth = sessionStore.authSession.first()
+            val savedPassword = if (prefs.rememberCredentials) credentialStore.loadPassword() else ""
             _state.update {
                 it.copy(
-                    panelBaseUrl = prefs.panelBaseUrl,
                     proxmoxHost = prefs.proxmoxHost,
                     username = prefs.username,
+                    password = savedPassword,
                     realm = prefs.realm,
                     verifyTls = prefs.verifyTls,
-                    connectionOpen = prefs.panelBaseUrl.isBlank() || prefs.proxmoxHost.isBlank(),
+                    rememberCredentials = prefs.rememberCredentials,
                 )
             }
-            if (prefs.panelBaseUrl.isNotBlank() && !cookie.isNullOrBlank()) {
-                api.configure(prefs.panelBaseUrl, prefs.verifyTls, cookie)
+            if (prefs.proxmoxHost.isNotBlank() && !auth.ticket.isNullOrBlank()) {
+                api.configure(
+                    baseUrl = prefs.proxmoxHost,
+                    verifyTls = prefs.verifyTls,
+                    ticket = auth.ticket,
+                    csrf = auth.csrf,
+                    username = auth.username ?: prefs.username,
+                )
                 runCatching { api.me() }
                     .onSuccess { _state.update { s -> s.copy(signedIn = true, checkingSession = false) } }
                     .onFailure {
                         sessionStore.clearSession()
+                        api.clearSessionLocal()
+                        // Ticket expired — fall back to saved credentials on the form.
                         _state.update { s -> s.copy(checkingSession = false) }
                     }
             } else {
@@ -70,17 +80,16 @@ class LoginViewModel(
 
     fun signIn() {
         val s = _state.value
-        val panel = normalizeBaseUrl(s.panelBaseUrl)
-        if (panel.isBlank() || s.proxmoxHost.isBlank() || s.username.isBlank() || s.password.isBlank()) {
-            _state.update { it.copy(error = "Panel URL, Proxmox server, username, and password are required.") }
+        val host = normalizeBaseUrl(s.proxmoxHost)
+        if (host.isBlank() || s.username.isBlank() || s.password.isBlank()) {
+            _state.update { it.copy(error = "Proxmox server, username, and password are required.") }
             return
         }
         viewModelScope.launch {
             _state.update { it.copy(pending = true, error = null) }
             try {
                 api.login(
-                    panelBaseUrl = panel,
-                    proxmoxHost = s.proxmoxHost.trim(),
+                    proxmoxHost = host,
                     username = s.username.trim(),
                     password = s.password,
                     realm = s.realm,
@@ -88,14 +97,26 @@ class LoginViewModel(
                 )
                 sessionStore.saveLoginPrefs(
                     LoginPrefs(
-                        panelBaseUrl = panel,
-                        proxmoxHost = s.proxmoxHost.trim(),
+                        proxmoxHost = host,
                         username = s.username.trim(),
                         realm = s.realm,
                         verifyTls = s.verifyTls,
+                        rememberCredentials = s.rememberCredentials,
                     ),
                 )
-                _state.update { it.copy(pending = false, signedIn = true, password = "") }
+                if (s.rememberCredentials) {
+                    credentialStore.savePassword(s.password)
+                } else {
+                    credentialStore.clearPassword()
+                }
+                _state.update {
+                    it.copy(
+                        pending = false,
+                        signedIn = true,
+                        // Keep password in memory only when remember is on.
+                        password = if (s.rememberCredentials) s.password else "",
+                    )
+                }
             } catch (e: ApiException) {
                 _state.update { it.copy(pending = false, error = e.message) }
             } catch (e: Exception) {
@@ -105,10 +126,14 @@ class LoginViewModel(
     }
 
     companion object {
-        fun factory(api: ApiClient, store: SessionStore) = object : ViewModelProvider.Factory {
+        fun factory(
+            api: ApiClient,
+            store: SessionStore,
+            credentials: CredentialStore,
+        ) = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>): T =
-                LoginViewModel(api, store) as T
+                LoginViewModel(api, store, credentials) as T
         }
     }
 }

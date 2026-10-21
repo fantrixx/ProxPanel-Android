@@ -1,14 +1,18 @@
 package com.proxpanel.app
 
+import android.graphics.Color
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
-import androidx.compose.ui.Modifier.modifier
+import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -16,12 +20,14 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.proxpanel.app.data.GuestItem
+import com.proxpanel.app.ui.create.CreateGuestScreen
+import com.proxpanel.app.ui.create.CreateGuestType
+import com.proxpanel.app.ui.create.CreateGuestViewModel
 import com.proxpanel.app.ui.detail.GuestDetailScreen
 import com.proxpanel.app.ui.detail.GuestDetailViewModel
-import com.proxpanel.app.ui.guests.GuestsScreen
-import com.proxpanel.app.ui.guests.GuestsViewModel
 import com.proxpanel.app.ui.login.LoginScreen
 import com.proxpanel.app.ui.login.LoginViewModel
+import com.proxpanel.app.ui.shell.HomeShell
 import com.proxpanel.app.ui.theme.ProxPanelTheme
 import java.net.URLDecoder
 import java.net.URLEncoder
@@ -30,11 +36,20 @@ import java.nio.charset.StandardCharsets
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
+        )
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            window.isNavigationBarContrastEnforced = false
+        }
         val app = application as ProxPanelApp
         setContent {
             ProxPanelTheme(darkTheme = true) {
-                Surface(modifier = Modifier.fillMaxSize()) {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background,
+                ) {
                     ProxPanelNav(app.container)
                 }
             }
@@ -49,30 +64,57 @@ private fun ProxPanelNav(container: AppContainer) {
     NavHost(navController = nav, startDestination = "login") {
         composable("login") {
             val vm: LoginViewModel = viewModel(
-                factory = LoginViewModel.factory(container.api, container.sessionStore),
+                factory = LoginViewModel.factory(
+                    container.api,
+                    container.sessionStore,
+                    container.credentialStore,
+                ),
             )
             LoginScreen(
                 viewModel = vm,
                 onSignedIn = {
-                    nav.navigate("guests") {
+                    nav.navigate("home") {
                         popUpTo("login") { inclusive = true }
                     }
                 },
             )
         }
 
-        composable("guests") {
-            val vm: GuestsViewModel = viewModel(factory = GuestsViewModel.factory(container.api))
-            GuestsScreen(
-                viewModel = vm,
+        composable("home") {
+            HomeShell(
+                container = container,
                 onOpenGuest = { guest ->
                     nav.navigate(
                         "guest/${guest.type}/${enc(guest.node)}/${guest.vmid}/${enc(guest.name)}/${enc(guest.status)}",
                     )
                 },
+                onCreateGuest = { nav.navigate("create") },
                 onLogout = {
                     nav.navigate("login") {
-                        popUpTo("guests") { inclusive = true }
+                        popUpTo("home") { inclusive = true }
+                    }
+                },
+            )
+        }
+
+        composable("create") {
+            val vm: CreateGuestViewModel = viewModel(
+                factory = CreateGuestViewModel.factory(container.api, CreateGuestType.Lxc),
+            )
+            CreateGuestScreen(
+                viewModel = vm,
+                onBack = { nav.popBackStack() },
+                onCreated = { result ->
+                    container.jobTracker.trackCreate(
+                        node = result.node,
+                        type = result.type,
+                        vmid = result.vmid,
+                        upid = result.upid,
+                    )
+                    nav.navigate(
+                        "guest/${result.type}/${enc(result.node)}/${result.vmid}/${enc("Guest ${result.vmid}")}/creating",
+                    ) {
+                        popUpTo("home")
                     }
                 },
             )
@@ -106,7 +148,7 @@ private fun ProxPanelNav(container: AppContainer) {
                 )
             }
             val vm: GuestDetailViewModel = viewModel(
-                factory = GuestDetailViewModel.factory(container.api, guest),
+                factory = GuestDetailViewModel.factory(container.api, container.jobTracker, guest),
             )
             GuestDetailScreen(viewModel = vm, onBack = { nav.popBackStack() })
         }
