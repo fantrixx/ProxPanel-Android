@@ -5,9 +5,11 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.proxpanel.app.R
 import com.proxpanel.app.data.ApiClient
-import com.proxpanel.app.util.L10n
+import com.proxpanel.app.data.NodesViewMode
+import com.proxpanel.app.data.PrefsStore
 import com.proxpanel.app.data.PveTask
 import com.proxpanel.app.data.toGuestOrNull
+import com.proxpanel.app.util.L10n
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -18,6 +20,7 @@ data class TasksUiState(
     val tasks: List<PveTask> = emptyList(),
     val guests: Map<String, TaskGuestRef> = emptyMap(),
     val query: String = "",
+    val viewMode: NodesViewMode = NodesViewMode.Cards,
     val loading: Boolean = true,
     val refreshing: Boolean = false,
     val error: String? = null,
@@ -29,12 +32,22 @@ data class TasksUiState(
 class TasksViewModel(
     private val api: ApiClient,
     private val l10n: L10n,
+    private val prefsStore: PrefsStore,
 ) : ViewModel() {
     private val _state = MutableStateFlow(TasksUiState())
     val state: StateFlow<TasksUiState> = _state.asStateFlow()
 
     init {
+        viewModelScope.launch {
+            prefsStore.nodesViewMode.collect { mode ->
+                _state.update { it.copy(viewMode = mode) }
+            }
+        }
         refresh(initial = true)
+    }
+
+    fun setViewMode(mode: NodesViewMode) {
+        viewModelScope.launch { prefsStore.setNodesViewMode(mode) }
     }
 
     fun setQuery(value: String) = _state.update { it.copy(query = value) }
@@ -118,9 +131,10 @@ class TasksViewModel(
     }
 
     companion object {
-        fun factory(api: ApiClient, l10n: L10n) = object : ViewModelProvider.Factory {
+        fun factory(api: ApiClient, l10n: L10n, prefsStore: PrefsStore) = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
-            override fun <T : ViewModel> create(modelClass: Class<T>): T = TasksViewModel(api, l10n) as T
+            override fun <T : ViewModel> create(modelClass: Class<T>): T =
+                TasksViewModel(api, l10n, prefsStore) as T
         }
     }
 }

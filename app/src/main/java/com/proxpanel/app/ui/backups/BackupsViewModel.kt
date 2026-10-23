@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.proxpanel.app.data.ApiClient
 import com.proxpanel.app.data.BackupOverviewGuest
 import com.proxpanel.app.data.BackupStorage
+import com.proxpanel.app.data.NodesViewMode
 import com.proxpanel.app.data.PrefsStore
 import com.proxpanel.app.R
 import com.proxpanel.app.jobs.JobTracker
@@ -25,6 +26,7 @@ import java.util.Date
 data class BackupsUiState(
     val guests: List<BackupOverviewGuest> = emptyList(),
     val storages: List<BackupStorage> = emptyList(),
+    val viewMode: NodesViewMode = NodesViewMode.Cards,
     val loading: Boolean = true,
     val refreshing: Boolean = false,
     /** Keys like "node/vmid" for guests with an active vzdump. */
@@ -38,7 +40,7 @@ class BackupsViewModel(
     private val api: ApiClient,
     private val jobTracker: JobTracker,
     private val l10n: L10n,
-    private val prefsStore: PrefsStore? = null,
+    private val prefsStore: PrefsStore,
 ) : ViewModel() {
     private val _state = MutableStateFlow(BackupsUiState())
     val state: StateFlow<BackupsUiState> = _state.asStateFlow()
@@ -48,8 +50,17 @@ class BackupsViewModel(
     private val seenOnApi = mutableSetOf<String>()
 
     init {
+        viewModelScope.launch {
+            prefsStore.nodesViewMode.collect { mode ->
+                _state.update { it.copy(viewMode = mode) }
+            }
+        }
         refresh(initial = true)
         startPolling()
+    }
+
+    fun setViewMode(mode: NodesViewMode) {
+        viewModelScope.launch { prefsStore.setNodesViewMode(mode) }
     }
 
     fun refresh(initial: Boolean = false) {
@@ -101,7 +112,7 @@ class BackupsViewModel(
                 )
             }
             try {
-                prefsStore?.setLastBackupStorage(storage)
+                prefsStore.setLastBackupStorage(storage)
                 jobTracker.startGuestBackup(
                     node = guest.node,
                     type = guest.type,
@@ -242,7 +253,7 @@ class BackupsViewModel(
             return parts.getOrNull(6)?.toIntOrNull()
         }
 
-        fun factory(api: ApiClient, jobTracker: JobTracker, l10n: L10n, prefsStore: PrefsStore? = null) =
+        fun factory(api: ApiClient, jobTracker: JobTracker, l10n: L10n, prefsStore: PrefsStore) =
             object : ViewModelProvider.Factory {
                 @Suppress("UNCHECKED_CAST")
                 override fun <T : ViewModel> create(modelClass: Class<T>): T =

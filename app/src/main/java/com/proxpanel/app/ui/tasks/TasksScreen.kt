@@ -14,6 +14,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -23,6 +26,7 @@ import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -34,15 +38,20 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.res.stringResource
-import com.proxpanel.app.R
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.proxpanel.app.R
+import com.proxpanel.app.data.NodesViewMode
 import com.proxpanel.app.data.PveTask
+import com.proxpanel.app.ui.components.AppearanceDialog
 import com.proxpanel.app.ui.components.ProxCard
 import com.proxpanel.app.ui.components.ProxEmptyState
 import com.proxpanel.app.ui.components.ProxListPadding
@@ -53,6 +62,7 @@ import com.proxpanel.app.ui.theme.ProxBad
 import com.proxpanel.app.ui.theme.ProxGood
 import com.proxpanel.app.ui.theme.ProxSpace
 import com.proxpanel.app.ui.theme.ProxWarn
+import com.proxpanel.app.ui.util.rememberAppHaptics
 import java.text.DateFormat
 import java.util.Date
 import java.util.concurrent.TimeUnit
@@ -61,7 +71,20 @@ import java.util.concurrent.TimeUnit
 @Composable
 fun TasksScreen(viewModel: TasksViewModel) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val haptics = rememberAppHaptics()
     val filtered = remember(state.tasks, state.query, state.guests) { viewModel.filtered() }
+    var appearanceOpen by remember { mutableStateOf(false) }
+
+    if (appearanceOpen) {
+        AppearanceDialog(
+            viewMode = state.viewMode,
+            onViewMode = {
+                haptics.tick()
+                viewModel.setViewMode(it)
+            },
+            onDismiss = { appearanceOpen = false },
+        )
+    }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -86,6 +109,9 @@ fun TasksScreen(viewModel: TasksViewModel) {
                 },
                 embeddedInShell = true,
                 actions = {
+                    IconButton(onClick = { appearanceOpen = true }) {
+                        Icon(Icons.Default.Tune, contentDescription = stringResource(R.string.cd_view_options))
+                    }
                     IconButton(onClick = { viewModel.refresh() }) {
                         Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.action_refresh))
                     }
@@ -117,19 +143,62 @@ fun TasksScreen(viewModel: TasksViewModel) {
                         icon = Icons.AutoMirrored.Outlined.ListAlt,
                     )
                     else -> {
-                        LazyColumn(
-                            contentPadding = ProxListPadding,
-                            verticalArrangement = Arrangement.spacedBy(ProxSpace.listGap),
-                        ) {
-                            items(filtered, key = { it.upid }) { task ->
-                                TaskCard(
-                                    task = task,
-                                    guests = state.guests,
-                                    expanded = state.expandedUpid == task.upid,
-                                    logLoading = state.expandedUpid == task.upid && state.logLoading,
-                                    logLines = if (state.expandedUpid == task.upid) state.logLines else emptyList(),
-                                    onToggle = { viewModel.toggleExpand(task) },
-                                )
+                        when (state.viewMode) {
+                            NodesViewMode.Cards -> {
+                                LazyColumn(
+                                    contentPadding = ProxListPadding,
+                                    verticalArrangement = Arrangement.spacedBy(ProxSpace.listGap),
+                                ) {
+                                    items(filtered, key = { it.upid }) { task ->
+                                        TaskCard(
+                                            task = task,
+                                            guests = state.guests,
+                                            expanded = state.expandedUpid == task.upid,
+                                            logLoading = state.expandedUpid == task.upid && state.logLoading,
+                                            logLines = if (state.expandedUpid == task.upid) state.logLines else emptyList(),
+                                            dense = false,
+                                            onToggle = { viewModel.toggleExpand(task) },
+                                        )
+                                    }
+                                }
+                            }
+                            NodesViewMode.Grid -> {
+                                LazyVerticalGrid(
+                                    columns = GridCells.Fixed(2),
+                                    contentPadding = ProxListPadding,
+                                    verticalArrangement = Arrangement.spacedBy(ProxSpace.listGap),
+                                    horizontalArrangement = Arrangement.spacedBy(ProxSpace.listGap),
+                                    modifier = Modifier.fillMaxSize(),
+                                ) {
+                                    gridItems(filtered, key = { it.upid }) { task ->
+                                        TaskCard(
+                                            task = task,
+                                            guests = state.guests,
+                                            expanded = state.expandedUpid == task.upid,
+                                            logLoading = state.expandedUpid == task.upid && state.logLoading,
+                                            logLines = if (state.expandedUpid == task.upid) state.logLines else emptyList(),
+                                            dense = true,
+                                            onToggle = { viewModel.toggleExpand(task) },
+                                        )
+                                    }
+                                }
+                            }
+                            NodesViewMode.Compact -> {
+                                LazyColumn(
+                                    contentPadding = ProxListPadding,
+                                    verticalArrangement = Arrangement.spacedBy(ProxSpace.sm),
+                                ) {
+                                    items(filtered, key = { it.upid }) { task ->
+                                        TaskCompactRow(
+                                            task = task,
+                                            guests = state.guests,
+                                            expanded = state.expandedUpid == task.upid,
+                                            logLoading = state.expandedUpid == task.upid && state.logLoading,
+                                            logLines = if (state.expandedUpid == task.upid) state.logLines else emptyList(),
+                                            onToggle = { viewModel.toggleExpand(task) },
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
@@ -146,6 +215,7 @@ private fun TaskCard(
     expanded: Boolean,
     logLoading: Boolean,
     logLines: List<String>,
+    dense: Boolean,
     onToggle: () -> Unit,
 ) {
     val copy = remember(task, guests) { describeTask(task, guests) }
@@ -162,7 +232,7 @@ private fun TaskCard(
         copy.targetTag,
         copy.node,
         duration,
-        copy.userLabel,
+        if (dense) null else copy.userLabel,
         whenLabel,
     )
 
@@ -186,7 +256,9 @@ private fun TaskCard(
                 ) {
                     Text(
                         copy.title,
-                        style = MaterialTheme.typography.titleMedium,
+                        style = if (dense) MaterialTheme.typography.titleSmall else MaterialTheme.typography.titleMedium,
+                        maxLines = if (dense) 2 else 3,
+                        overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f, fill = false),
                     )
                     Surface(
@@ -206,10 +278,12 @@ private fun TaskCard(
                     meta.joinToString(" · "),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = if (dense) 2 else 3,
+                    overflow = TextOverflow.Ellipsis,
                 )
                 copy.statusNote?.let {
                     Spacer(Modifier.height(ProxSpace.xs))
-                    Text(it, style = MaterialTheme.typography.labelMedium, color = ProxBad)
+                    Text(it, style = MaterialTheme.typography.labelMedium, color = ProxBad, maxLines = 2)
                 }
             }
             Spacer(Modifier.width(ProxSpace.sm))
@@ -217,36 +291,90 @@ private fun TaskCard(
         }
 
         AnimatedVisibility(visible = expanded) {
-            Column(modifier = Modifier.padding(top = ProxSpace.md)) {
-                when {
-                    logLoading -> {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp)
-                            Spacer(Modifier.width(ProxSpace.sm))
-                            Text(stringResource(R.string.tasks_log_loading), color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                    }
-                    logLines.isEmpty() -> Text(
-                        stringResource(R.string.tasks_log_empty),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    else -> {
-                        Surface(
-                            shape = MaterialTheme.shapes.small,
-                            color = MaterialTheme.colorScheme.surfaceContainerHighest,
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            Column(modifier = Modifier.padding(ProxSpace.md)) {
-                                logLines.takeLast(40).forEach { line ->
-                                    Text(
-                                        line,
-                                        style = MaterialTheme.typography.labelSmall,
-                                        fontFamily = FontFamily.Monospace,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                }
-                            }
+            TaskLogBlock(logLoading = logLoading, logLines = logLines)
+        }
+    }
+}
+
+@Composable
+private fun TaskCompactRow(
+    task: PveTask,
+    guests: Map<String, TaskGuestRef>,
+    expanded: Boolean,
+    logLoading: Boolean,
+    logLines: List<String>,
+    onToggle: () -> Unit,
+) {
+    val copy = remember(task, guests) { describeTask(task, guests) }
+    val whenLabel = task.starttime?.let {
+        DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(it * 1000))
+    }
+    ProxCard {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onToggle),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.width(ProxSpace.sm))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    copy.title,
+                    style = MaterialTheme.typography.titleSmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    listOfNotNull(copy.targetTag, copy.node, whenLabel).joinToString(" · "),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            OutcomeBadge(copy.outcome)
+        }
+        AnimatedVisibility(visible = expanded) {
+            TaskLogBlock(logLoading = logLoading, logLines = logLines)
+        }
+    }
+}
+
+@Composable
+private fun TaskLogBlock(logLoading: Boolean, logLines: List<String>) {
+    Column(modifier = Modifier.padding(top = ProxSpace.md)) {
+        when {
+            logLoading -> {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp)
+                    Spacer(Modifier.width(ProxSpace.sm))
+                    Text(stringResource(R.string.tasks_log_loading), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            logLines.isEmpty() -> Text(
+                stringResource(R.string.tasks_log_empty),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            else -> {
+                Surface(
+                    shape = MaterialTheme.shapes.small,
+                    color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Column(modifier = Modifier.padding(ProxSpace.md)) {
+                        logLines.takeLast(40).forEach { line ->
+                            Text(
+                                line,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontFamily = FontFamily.Monospace,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
                         }
                     }
                 }

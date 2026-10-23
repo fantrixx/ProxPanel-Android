@@ -2,17 +2,21 @@ package com.proxpanel.app.ui.media
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.outlined.Album
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -28,10 +32,15 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import com.proxpanel.app.R
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.proxpanel.app.R
+import com.proxpanel.app.data.MediaItem
+import com.proxpanel.app.data.NodesViewMode
+import com.proxpanel.app.ui.components.AppearanceDialog
 import com.proxpanel.app.ui.components.ProxCard
 import com.proxpanel.app.ui.components.ProxEmptyState
 import com.proxpanel.app.ui.components.ProxListPadding
@@ -39,13 +48,16 @@ import com.proxpanel.app.ui.components.ProxLoadingState
 import com.proxpanel.app.ui.components.ProxSearchBar
 import com.proxpanel.app.ui.components.ProxTopBar
 import com.proxpanel.app.ui.theme.ProxSpace
+import com.proxpanel.app.ui.util.rememberAppHaptics
 import com.proxpanel.app.util.formatBytes
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MediaScreen(viewModel: MediaViewModel) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val haptics = rememberAppHaptics()
     var query by remember { mutableStateOf("") }
+    var appearanceOpen by remember { mutableStateOf(false) }
     val filtered = remember(state.items, query) {
         val q = query.trim().lowercase()
         if (q.isEmpty()) state.items
@@ -54,6 +66,17 @@ fun MediaScreen(viewModel: MediaViewModel) {
                 it.node.lowercase().contains(q) ||
                 it.storage.lowercase().contains(q)
         }
+    }
+
+    if (appearanceOpen) {
+        AppearanceDialog(
+            viewMode = state.viewMode,
+            onViewMode = {
+                haptics.tick()
+                viewModel.setViewMode(it)
+            },
+            onDismiss = { appearanceOpen = false },
+        )
     }
 
     Scaffold(
@@ -65,6 +88,9 @@ fun MediaScreen(viewModel: MediaViewModel) {
                 subtitle = stringResource(R.string.media_subtitle),
                 embeddedInShell = true,
                 actions = {
+                    IconButton(onClick = { appearanceOpen = true }) {
+                        Icon(Icons.Default.Tune, contentDescription = stringResource(R.string.cd_view_options))
+                    }
                     IconButton(onClick = { viewModel.refresh() }) {
                         Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.action_refresh))
                     }
@@ -121,27 +147,89 @@ fun MediaScreen(viewModel: MediaViewModel) {
                         icon = Icons.Outlined.Album,
                     )
                     else -> {
-                        LazyColumn(
-                            contentPadding = ProxListPadding,
-                            verticalArrangement = Arrangement.spacedBy(ProxSpace.listGap),
-                        ) {
-                            items(filtered, key = { "${it.node}-${it.volid}" }) { item ->
-                                ProxCard {
-                                    Text(
-                                        item.volid.substringAfterLast('/'),
-                                        style = MaterialTheme.typography.titleMedium,
-                                    )
-                                    Spacer(Modifier.height(ProxSpace.xs))
-                                    Text(
-                                        "${item.node} · ${item.storage} · ${formatBytes(item.size)}",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
+                        when (state.viewMode) {
+                            NodesViewMode.Cards -> {
+                                LazyColumn(
+                                    contentPadding = ProxListPadding,
+                                    verticalArrangement = Arrangement.spacedBy(ProxSpace.listGap),
+                                ) {
+                                    items(filtered, key = { "${it.node}-${it.volid}" }) { item ->
+                                        MediaCard(item = item, dense = false)
+                                    }
+                                }
+                            }
+                            NodesViewMode.Grid -> {
+                                LazyVerticalGrid(
+                                    columns = GridCells.Fixed(2),
+                                    contentPadding = ProxListPadding,
+                                    verticalArrangement = Arrangement.spacedBy(ProxSpace.listGap),
+                                    horizontalArrangement = Arrangement.spacedBy(ProxSpace.listGap),
+                                    modifier = Modifier.fillMaxSize(),
+                                ) {
+                                    gridItems(filtered, key = { "${it.node}-${it.volid}" }) { item ->
+                                        MediaCard(item = item, dense = true)
+                                    }
+                                }
+                            }
+                            NodesViewMode.Compact -> {
+                                LazyColumn(
+                                    contentPadding = ProxListPadding,
+                                    verticalArrangement = Arrangement.spacedBy(ProxSpace.sm),
+                                ) {
+                                    items(filtered, key = { "${it.node}-${it.volid}" }) { item ->
+                                        MediaCompactRow(item)
+                                    }
                                 }
                             }
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MediaCard(item: MediaItem, dense: Boolean) {
+    ProxCard {
+        Text(
+            item.volid.substringAfterLast('/'),
+            style = if (dense) MaterialTheme.typography.titleSmall else MaterialTheme.typography.titleMedium,
+            maxLines = if (dense) 2 else 3,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Spacer(Modifier.height(ProxSpace.xs))
+        Text(
+            "${item.node} · ${item.storage} · ${formatBytes(item.size)}",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = if (dense) 2 else 3,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+@Composable
+private fun MediaCompactRow(item: MediaItem) {
+    ProxCard {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    item.volid.substringAfterLast('/'),
+                    style = MaterialTheme.typography.titleSmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    "${item.node} · ${item.storage} · ${formatBytes(item.size)}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
         }
     }

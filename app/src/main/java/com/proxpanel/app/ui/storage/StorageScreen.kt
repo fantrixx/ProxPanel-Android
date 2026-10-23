@@ -6,13 +6,19 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.outlined.Storage
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -27,10 +33,14 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.res.stringResource
-import com.proxpanel.app.R
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.proxpanel.app.R
+import com.proxpanel.app.data.ClusterResource
+import com.proxpanel.app.data.NodesViewMode
+import com.proxpanel.app.ui.components.AppearanceDialog
 import com.proxpanel.app.ui.components.KindChip
 import com.proxpanel.app.ui.components.MetricBar
 import com.proxpanel.app.ui.components.ProxCard
@@ -42,6 +52,7 @@ import com.proxpanel.app.ui.components.ProxTopBar
 import com.proxpanel.app.ui.components.SectionLabel
 import com.proxpanel.app.ui.components.StatusDot
 import com.proxpanel.app.ui.theme.ProxSpace
+import com.proxpanel.app.ui.util.rememberAppHaptics
 import com.proxpanel.app.util.cpuPct
 import com.proxpanel.app.util.formatBytes
 import com.proxpanel.app.util.formatPct
@@ -52,7 +63,9 @@ import com.proxpanel.app.util.usagePct
 @Composable
 fun StorageScreen(viewModel: StorageViewModel) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val haptics = rememberAppHaptics()
     var query by remember { mutableStateOf("") }
+    var appearanceOpen by remember { mutableStateOf(false) }
     val q = query.trim().lowercase()
     val nodes = remember(state.nodes, q) {
         if (q.isEmpty()) state.nodes
@@ -71,6 +84,17 @@ fun StorageScreen(viewModel: StorageViewModel) {
         }
     }
 
+    if (appearanceOpen) {
+        AppearanceDialog(
+            viewMode = state.viewMode,
+            onViewMode = {
+                haptics.tick()
+                viewModel.setViewMode(it)
+            },
+            onDismiss = { appearanceOpen = false },
+        )
+    }
+
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
@@ -80,6 +104,9 @@ fun StorageScreen(viewModel: StorageViewModel) {
                 subtitle = stringResource(R.string.storage_subtitle),
                 embeddedInShell = true,
                 actions = {
+                    IconButton(onClick = { appearanceOpen = true }) {
+                        Icon(Icons.Default.Tune, contentDescription = stringResource(R.string.cd_view_options))
+                    }
                     IconButton(onClick = { viewModel.refresh() }) {
                         Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.action_refresh))
                     }
@@ -111,85 +138,256 @@ fun StorageScreen(viewModel: StorageViewModel) {
                         icon = Icons.Outlined.Storage,
                     )
                     else -> {
-                        LazyColumn(
-                            contentPadding = ProxListPadding,
-                            verticalArrangement = Arrangement.spacedBy(ProxSpace.listGap),
-                        ) {
-                            if (state.error != null) {
-                                item {
-                                    Text(state.error!!, color = MaterialTheme.colorScheme.error)
-                                }
-                            }
-                            if (nodes.isNotEmpty()) {
-                                item { SectionLabel(stringResource(R.string.storage_section_nodes)) }
-                                items(nodes, key = { it.id }) { node ->
-                                    val online = node.status.equals("online", ignoreCase = true)
-                                    ProxCard {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            StatusDot(running = online)
-                                            Spacer(Modifier.width(ProxSpace.md))
-                                            Text(
-                                                node.node ?: node.id,
-                                                style = MaterialTheme.typography.titleMedium,
-                                                modifier = Modifier.weight(1f),
-                                            )
-                                            KindChip(text = stringResource(R.string.storage_chip_node), kind = "node")
-                                        }
-                                        Spacer(Modifier.height(ProxSpace.xs))
-                                        Text(
-                                            "${node.status ?: "unknown"} · ${stringResource(R.string.uptime_prefix, formatUptime(node.uptime))}",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        )
-                                        Spacer(Modifier.height(ProxSpace.md))
-                                        MetricBar(stringResource(R.string.metric_cpu), formatPct(node.cpu), cpuPct(node.cpu))
-                                        Spacer(Modifier.height(ProxSpace.sm))
-                                        MetricBar(
-                                            stringResource(R.string.metric_ram),
-                                            "${formatBytes(node.mem)} / ${formatBytes(node.maxmem)}",
-                                            usagePct(node.mem, node.maxmem),
-                                        )
-                                    }
-                                }
-                            }
-                            if (storages.isNotEmpty()) {
-                                item {
-                                    Spacer(Modifier.height(ProxSpace.sm))
-                                    SectionLabel(stringResource(R.string.storage_section_storage))
-                                }
-                                items(storages, key = { it.id }) { store ->
-                                    ProxCard {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Text(
-                                                "${store.storage}",
-                                                style = MaterialTheme.typography.titleMedium,
-                                                modifier = Modifier.weight(1f),
-                                            )
-                                            KindChip(
-                                                text = store.plugintype?.uppercase() ?: "STORE",
-                                                kind = "storage",
-                                            )
-                                        }
-                                        Spacer(Modifier.height(ProxSpace.xs))
-                                        Text(
-                                            listOfNotNull(store.node, store.status, store.content)
-                                                .joinToString(" · "),
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        )
-                                        Spacer(Modifier.height(ProxSpace.md))
-                                        MetricBar(
-                                            stringResource(R.string.metric_used),
-                                            "${formatBytes(store.disk)} / ${formatBytes(store.maxdisk)}",
-                                            usagePct(store.disk, store.maxdisk),
-                                        )
-                                    }
-                                }
-                            }
+                        when (state.viewMode) {
+                            NodesViewMode.Cards -> StorageCardsList(
+                                nodes = nodes,
+                                storages = storages,
+                                error = state.error,
+                            )
+                            NodesViewMode.Grid -> StorageGridList(
+                                nodes = nodes,
+                                storages = storages,
+                                error = state.error,
+                            )
+                            NodesViewMode.Compact -> StorageCompactList(
+                                nodes = nodes,
+                                storages = storages,
+                                error = state.error,
+                            )
                         }
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun StorageCardsList(
+    nodes: List<ClusterResource>,
+    storages: List<ClusterResource>,
+    error: String?,
+) {
+    LazyColumn(
+        contentPadding = ProxListPadding,
+        verticalArrangement = Arrangement.spacedBy(ProxSpace.listGap),
+    ) {
+        if (error != null) {
+            item { Text(error, color = MaterialTheme.colorScheme.error) }
+        }
+        if (nodes.isNotEmpty()) {
+            item { SectionLabel(stringResource(R.string.storage_section_nodes)) }
+            items(nodes, key = { "n-${it.id}" }) { node ->
+                NodeCard(node = node, compact = false)
+            }
+        }
+        if (storages.isNotEmpty()) {
+            item {
+                Spacer(Modifier.height(ProxSpace.sm))
+                SectionLabel(stringResource(R.string.storage_section_storage))
+            }
+            items(storages, key = { "s-${it.id}" }) { store ->
+                StorageCard(store = store, compact = false)
+            }
+        }
+    }
+}
+
+@Composable
+private fun StorageGridList(
+    nodes: List<ClusterResource>,
+    storages: List<ClusterResource>,
+    error: String?,
+) {
+    LazyVerticalGrid(
+        columns = GridCells.Fixed(2),
+        contentPadding = ProxListPadding,
+        verticalArrangement = Arrangement.spacedBy(ProxSpace.listGap),
+        horizontalArrangement = Arrangement.spacedBy(ProxSpace.listGap),
+        modifier = Modifier.fillMaxSize(),
+    ) {
+        if (error != null) {
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                Text(error, color = MaterialTheme.colorScheme.error)
+            }
+        }
+        if (nodes.isNotEmpty()) {
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                SectionLabel(stringResource(R.string.storage_section_nodes))
+            }
+            gridItems(nodes, key = { "n-${it.id}" }) { node ->
+                NodeCard(node = node, compact = true)
+            }
+        }
+        if (storages.isNotEmpty()) {
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                SectionLabel(stringResource(R.string.storage_section_storage))
+            }
+            gridItems(storages, key = { "s-${it.id}" }) { store ->
+                StorageCard(store = store, compact = true)
+            }
+        }
+    }
+}
+
+@Composable
+private fun StorageCompactList(
+    nodes: List<ClusterResource>,
+    storages: List<ClusterResource>,
+    error: String?,
+) {
+    LazyColumn(
+        contentPadding = ProxListPadding,
+        verticalArrangement = Arrangement.spacedBy(ProxSpace.sm),
+    ) {
+        if (error != null) {
+            item { Text(error, color = MaterialTheme.colorScheme.error) }
+        }
+        if (nodes.isNotEmpty()) {
+            item { SectionLabel(stringResource(R.string.storage_section_nodes)) }
+            items(nodes, key = { "n-${it.id}" }) { node ->
+                NodeCompactRow(node)
+            }
+        }
+        if (storages.isNotEmpty()) {
+            item {
+                Spacer(Modifier.height(ProxSpace.sm))
+                SectionLabel(stringResource(R.string.storage_section_storage))
+            }
+            items(storages, key = { "s-${it.id}" }) { store ->
+                StorageCompactRow(store)
+            }
+        }
+    }
+}
+
+@Composable
+private fun NodeCard(node: ClusterResource, compact: Boolean) {
+    val online = node.status.equals("online", ignoreCase = true)
+    ProxCard {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            StatusDot(running = online)
+            Spacer(Modifier.width(ProxSpace.md))
+            Text(
+                node.node ?: node.id,
+                style = if (compact) MaterialTheme.typography.titleSmall else MaterialTheme.typography.titleMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            KindChip(text = stringResource(R.string.storage_chip_node), kind = "node")
+        }
+        Spacer(Modifier.height(ProxSpace.xs))
+        Text(
+            "${node.status ?: "unknown"} · ${stringResource(R.string.uptime_prefix, formatUptime(node.uptime))}",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = if (compact) 1 else 2,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Spacer(Modifier.height(if (compact) ProxSpace.sm else ProxSpace.md))
+        MetricBar(stringResource(R.string.metric_cpu), formatPct(node.cpu), cpuPct(node.cpu))
+        Spacer(Modifier.height(ProxSpace.sm))
+        MetricBar(
+            stringResource(R.string.metric_ram),
+            "${formatBytes(node.mem)} / ${formatBytes(node.maxmem)}",
+            usagePct(node.mem, node.maxmem),
+        )
+    }
+}
+
+@Composable
+private fun StorageCard(store: ClusterResource, compact: Boolean) {
+    ProxCard {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                "${store.storage}",
+                style = if (compact) MaterialTheme.typography.titleSmall else MaterialTheme.typography.titleMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            KindChip(
+                text = store.plugintype?.uppercase() ?: "STORE",
+                kind = "storage",
+            )
+        }
+        Spacer(Modifier.height(ProxSpace.xs))
+        Text(
+            listOfNotNull(store.node, store.status, store.content).joinToString(" · "),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = if (compact) 1 else 2,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Spacer(Modifier.height(if (compact) ProxSpace.sm else ProxSpace.md))
+        MetricBar(
+            stringResource(R.string.metric_used),
+            "${formatBytes(store.disk)} / ${formatBytes(store.maxdisk)}",
+            usagePct(store.disk, store.maxdisk),
+        )
+    }
+}
+
+@Composable
+private fun NodeCompactRow(node: ClusterResource) {
+    val online = node.status.equals("online", ignoreCase = true)
+    ProxCard {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            StatusDot(running = online)
+            Spacer(Modifier.width(ProxSpace.md))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    node.node ?: node.id,
+                    style = MaterialTheme.typography.titleSmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    "${formatPct(node.cpu)} CPU · ${formatBytes(node.mem)} RAM",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            KindChip(text = stringResource(R.string.storage_chip_node), kind = "node")
+        }
+    }
+}
+
+@Composable
+private fun StorageCompactRow(store: ClusterResource) {
+    ProxCard {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    store.storage.orEmpty(),
+                    style = MaterialTheme.typography.titleSmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    listOfNotNull(
+                        store.node,
+                        "${formatBytes(store.disk)} / ${formatBytes(store.maxdisk)}",
+                    ).joinToString(" · "),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            KindChip(
+                text = store.plugintype?.uppercase() ?: "STORE",
+                kind = "storage",
+            )
         }
     }
 }

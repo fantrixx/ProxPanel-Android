@@ -111,25 +111,40 @@ fun HomeShell(
                     }
                     composable(HomeTab.Storage.route) {
                         val vm: StorageViewModel = viewModel(
-                            factory = StorageViewModel.factory(container.api, container.l10n),
+                            factory = StorageViewModel.factory(
+                                container.api,
+                                container.l10n,
+                                container.prefsStore,
+                            ),
                         )
                         StorageScreen(viewModel = vm)
                     }
                     composable(HomeTab.Tasks.route) {
                         val vm: TasksViewModel = viewModel(
-                            factory = TasksViewModel.factory(container.api, container.l10n),
+                            factory = TasksViewModel.factory(
+                                container.api,
+                                container.l10n,
+                                container.prefsStore,
+                            ),
                         )
                         TasksScreen(viewModel = vm)
                     }
                     composable(HomeTab.Media.route) {
                         val vm: MediaViewModel = viewModel(
-                            factory = MediaViewModel.factory(container.api, container.l10n),
+                            factory = MediaViewModel.factory(
+                                container.api,
+                                container.l10n,
+                                container.prefsStore,
+                            ),
                         )
                         MediaScreen(viewModel = vm)
                     }
                     composable(HomeTab.Apps.route) {
                         val vm: MarketplaceViewModel = viewModel(
-                            factory = MarketplaceViewModel.factory(container.l10n),
+                            factory = MarketplaceViewModel.factory(
+                                container.l10n,
+                                container.prefsStore,
+                            ),
                         )
                         MarketplaceScreen(viewModel = vm)
                     }
