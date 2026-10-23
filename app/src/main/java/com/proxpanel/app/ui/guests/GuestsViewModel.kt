@@ -3,29 +3,46 @@ package com.proxpanel.app.ui.guests
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.proxpanel.app.data.AccentChoice
 import com.proxpanel.app.data.ApiClient
 import com.proxpanel.app.data.ApiException
 import com.proxpanel.app.data.AuthUser
+import com.proxpanel.app.data.GuestIconRecord
 import com.proxpanel.app.data.GuestItem
 import com.proxpanel.app.data.GuestRates
+import com.proxpanel.app.data.guestIconKey
+import com.proxpanel.app.data.NodesViewMode
+import com.proxpanel.app.data.PrefsStore
 import com.proxpanel.app.data.toGuestOrNull
+import com.proxpanel.app.data.toNodeOrNull
+import com.proxpanel.app.data.toStorageOrNull
+import com.proxpanel.app.R
 import com.proxpanel.app.jobs.JobTracker
 import com.proxpanel.app.jobs.ToastKind
+import com.proxpanel.app.util.L10n
+import com.proxpanel.app.ui.components.ClusterOverview
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
-enum class GuestTypeFilter {
+enum class GuestKindFilter {
     All,
     Ct,
     Vm,
+}
+
+enum class GuestStatusFilter {
+    All,
     Running,
     Stopped,
 }
@@ -58,9 +75,17 @@ data class GuestsUiState(
     val backupStorages: List<String> = emptyList(),
     val rates: Map<String, GuestRates> = emptyMap(),
     val cpuHistory: Map<String, List<Float>> = emptyMap(),
-    val typeFilter: GuestTypeFilter = GuestTypeFilter.All,
+    val pinnedKeys: Set<String> = emptySet(),
+    val guestIcons: Map<String, GuestIconRecord> = emptyMap(),
+    val lastBackupStorage: String? = null,
+    val accent: AccentChoice = AccentChoice.Orange,
+    val viewMode: NodesViewMode = NodesViewMode.Cards,
+    val cluster: ClusterOverview = ClusterOverview(),
+    val kindFilter: GuestKindFilter = GuestKindFilter.All,
+    val statusFilter: GuestStatusFilter = GuestStatusFilter.All,
     val loading: Boolean = true,
     val refreshing: Boolean = false,
+    val refreshPulse: Boolean = false,
     val busyKey: String? = null,
     val pendingPower: Map<String, PendingPower> = emptyMap(),
     val confirm: GuestPowerConfirm? = null,
@@ -71,6 +96,8 @@ data class GuestsUiState(
 class GuestsViewModel(
     private val api: ApiClient,
     private val jobTracker: JobTracker,
+    private val prefsStore: PrefsStore,
+    private val l10n: L10n,
 ) : ViewModel() {
     private val _state = MutableStateFlow(GuestsUiState())
     val state: StateFlow<GuestsUiState> = _state.asStateFlow()
@@ -81,12 +108,54 @@ class GuestsViewModel(
     private val cpuBuffers = mutableMapOf<String, ArrayDeque<Float>>()
 
     init {
-        refresh(initial = true)
-        pollJob = viewModelScope.launch {
-            while (isActive) {
-                delay(3_000)
-                refresh(silent = true)
+        viewModelScope.launch {
+            prefsStore.pinnedGuestKeys.collect { keys ->
+                _state.update { state ->
+                    val sorted = state.guests.sortedWith(
+                        compareByDescending<GuestItem> { it.key in keys }
+                            .thenByDescending { it.isRunning }
+                            .thenBy { it.name.lowercase() },
+                    )
+                    state.copy(pinnedKeys = keys, guests = sorted)
+                }
             }
+        }
+        viewModelScope.launch {
+            prefsStore.lastBackupStorage.collect { storage ->
+                _state.update { it.copy(lastBackupStorage = storage) }
+            }
+        }
+        viewModelScope.launch {
+            prefsStore.accentChoice.collect { accent ->
+                _state.update { it.copy(accent = accent) }
+            }
+        }
+        viewModelScope.launch {
+            prefsStore.nodesViewMode.collect { mode ->
+                _state.update { it.copy(viewMode = mode) }
+            }
+        }
+        viewModelScope.launch {
+            prefsStore.guestIcons.collect { icons ->
+                _state.update { it.copy(guestIcons = icons) }
+            }
+        }
+        refresh(initial = true)
+        // Restart auto-refresh whenever the user changes the interval in Settings.
+        viewModelScope.launch {
+            prefsStore.refreshInterval
+                .map { it.millis }
+                .distinctUntilChanged()
+                .collectLatest { millis ->
+                    pollJob?.cancel()
+                    if (millis <= 0L) return@collectLatest
+                    pollJob = viewModelScope.launch {
+                        while (isActive) {
+                            delay(millis)
+                            refresh(silent = true)
+                        }
+                    }
+                }
         }
         pendingJob = viewModelScope.launch {
             while (isActive) {
@@ -98,8 +167,43 @@ class GuestsViewModel(
         }
     }
 
-    fun setTypeFilter(filter: GuestTypeFilter) {
-        _state.update { it.copy(typeFilter = filter) }
+    fun togglePinned(guest: GuestItem) {
+        viewModelScope.launch { prefsStore.togglePinned(guest.key) }
+    }
+
+    fun setGuestIcon(guest: GuestItem, record: GuestIconRecord?) {
+        viewModelScope.launch {
+            prefsStore.setGuestIcon(guestIconKey(guest.node, guest.type, guest.vmid), record)
+        }
+    }
+
+    fun guestIconRecord(guest: GuestItem): GuestIconRecord? =
+        _state.value.guestIcons[guestIconKey(guest.node, guest.type, guest.vmid)]
+
+    fun setAccent(choice: AccentChoice) {
+        viewModelScope.launch { prefsStore.setAccentChoice(choice) }
+    }
+
+    fun setViewMode(mode: NodesViewMode) {
+        viewModelScope.launch { prefsStore.setNodesViewMode(mode) }
+    }
+
+    fun clearFilters() {
+        _state.update {
+            it.copy(kindFilter = GuestKindFilter.All, statusFilter = GuestStatusFilter.All)
+        }
+    }
+
+    fun setKindFilter(filter: GuestKindFilter) {
+        _state.update {
+            it.copy(kindFilter = if (it.kindFilter == filter) GuestKindFilter.All else filter)
+        }
+    }
+
+    fun setStatusFilter(filter: GuestStatusFilter) {
+        _state.update {
+            it.copy(statusFilter = if (it.statusFilter == filter) GuestStatusFilter.All else filter)
+        }
     }
 
     fun clearMessage() = _state.update { it.copy(actionMessage = null, error = null) }
@@ -116,6 +220,7 @@ class GuestsViewModel(
                         it.copy(
                             loading = initial || it.guests.isEmpty(),
                             refreshing = !initial && it.guests.isNotEmpty(),
+                            refreshPulse = !initial && it.guests.isNotEmpty(),
                             error = null,
                         )
                     }
@@ -125,15 +230,18 @@ class GuestsViewModel(
                     try {
                         val me = runCatching { api.me() }.getOrNull()
                         val res = api.resources()
+                        val pinned = _state.value.pinnedKeys
                         val guests = res.resources.mapNotNull { it.toGuestOrNull() }
                             .sortedWith(
-                                compareByDescending<GuestItem> { it.isRunning }
+                                compareByDescending<GuestItem> { it.key in pinned }
+                                    .thenByDescending { it.isRunning }
                                     .thenBy { it.name.lowercase() },
                             )
                         val storages = runCatching {
                             api.backupStorages().map { it.storage }.distinct()
                         }.getOrDefault(_state.value.backupStorages)
                         val (rates, history) = computeRatesAndSparks(guests)
+                        val cluster = computeClusterOverview(res.resources, guests)
                         _state.update {
                             it.copy(
                                 user = me ?: it.user,
@@ -141,17 +249,24 @@ class GuestsViewModel(
                                 backupStorages = storages,
                                 rates = rates,
                                 cpuHistory = history,
+                                cluster = cluster,
                                 loading = false,
                                 refreshing = false,
                                 error = null,
                             )
+                        }
+                        if (!silent) {
+                            viewModelScope.launch {
+                                delay(700)
+                                _state.update { it.copy(refreshPulse = false) }
+                            }
                         }
                         reconcilePendingPower()
                         return@withLock
                     } catch (e: ApiException) {
                         lastError = e.message
                     } catch (e: Exception) {
-                        lastError = e.message ?: "Failed to load"
+                        lastError = e.message ?: l10n.get(R.string.error_load_failed)
                     }
                     if (attempt == 0) delay(400)
                 }
@@ -159,6 +274,7 @@ class GuestsViewModel(
                     it.copy(
                         loading = false,
                         refreshing = false,
+                        refreshPulse = false,
                         error = if (silent && it.guests.isNotEmpty()) it.error else lastError,
                     )
                 }
@@ -206,6 +322,25 @@ class GuestsViewModel(
         return rates to history
     }
 
+    private fun computeClusterOverview(
+        resources: List<com.proxpanel.app.data.ClusterResource>,
+        guests: List<GuestItem>,
+    ): ClusterOverview {
+        val nodes = resources.mapNotNull { it.toNodeOrNull() }
+        val online = nodes.count { it.status.equals("online", ignoreCase = true) }
+        val storages = resources.mapNotNull { it.toStorageOrNull() }
+        val total = storages.mapNotNull { it.maxdisk }.sum()
+        val used = storages.mapNotNull { it.disk }.sum()
+        return ClusterOverview(
+            nodesOnline = online,
+            nodesTotal = nodes.size,
+            guestsRunning = guests.count { it.isRunning },
+            guestsTotal = guests.size,
+            storageFree = if (total > 0) (total - used).coerceAtLeast(0) else null,
+            storageTotal = total.takeIf { it > 0 },
+        )
+    }
+
     fun logout(onDone: () -> Unit) {
         viewModelScope.launch {
             runCatching { api.logout() }
@@ -218,23 +353,23 @@ class GuestsViewModel(
             "shutdown" -> GuestPowerConfirm(
                 guest = guest,
                 action = action,
-                title = "Herunterfahren?",
-                body = "„${guest.name}“ wird ordentlich heruntergefahren. Ungespeicherte Daten können verloren gehen.",
-                confirm = "Herunterfahren",
+                title = l10n.get(R.string.confirm_shutdown_title),
+                body = l10n.get(R.string.confirm_shutdown_body, guest.name),
+                confirm = l10n.get(R.string.confirm_shutdown_confirm),
             )
             "reboot" -> GuestPowerConfirm(
                 guest = guest,
                 action = action,
-                title = "Neustart?",
-                body = "„${guest.name}“ wird neu gestartet. Laufende Dienste werden kurz unterbrochen.",
-                confirm = "Neustart",
+                title = l10n.get(R.string.confirm_reboot_title),
+                body = l10n.get(R.string.confirm_reboot_body, guest.name),
+                confirm = l10n.get(R.string.confirm_reboot_confirm),
             )
             "stop" -> GuestPowerConfirm(
                 guest = guest,
                 action = action,
-                title = "Force Stop?",
-                body = "„${guest.name}“ wird hart gestoppt (wie Strom ziehen). Datenverlust möglich.",
-                confirm = "Stoppen",
+                title = l10n.get(R.string.confirm_force_stop_title),
+                body = l10n.get(R.string.confirm_force_stop_body, guest.name),
+                confirm = l10n.get(R.string.confirm_force_stop_confirm),
                 danger = true,
             )
             else -> null
@@ -271,11 +406,11 @@ class GuestsViewModel(
             try {
                 api.action(guest.node, guest.type, guest.vmid, action)
                 val msg = when (action) {
-                    "start" -> "${guest.name}: Start gestartet"
-                    "shutdown" -> "${guest.name}: Shutdown gestartet"
-                    "reboot" -> "${guest.name}: Neustart gestartet"
-                    "stop" -> "${guest.name}: Stop gestartet"
-                    else -> "${guest.name}: $action"
+                    "start" -> l10n.get(R.string.toast_power_start, guest.name)
+                    "shutdown" -> l10n.get(R.string.toast_power_shutdown, guest.name)
+                    "reboot" -> l10n.get(R.string.toast_power_reboot, guest.name)
+                    "stop" -> l10n.get(R.string.toast_power_stop, guest.name)
+                    else -> l10n.get(R.string.toast_action_requested, action)
                 }
                 jobTracker.toast(ToastKind.Ok, msg)
                 _state.update { it.copy(busyKey = null, actionMessage = msg) }
@@ -283,7 +418,7 @@ class GuestsViewModel(
                 refresh(silent = true)
                 reconcilePendingPower()
             } catch (e: Exception) {
-                val err = e.message ?: "Aktion fehlgeschlagen"
+                val err = e.message ?: l10n.get(R.string.error_action_failed)
                 jobTracker.toast(ToastKind.Err, err)
                 _state.update {
                     it.copy(
@@ -387,6 +522,7 @@ class GuestsViewModel(
         viewModelScope.launch {
             _state.update { it.copy(busyKey = key, error = null, actionMessage = null) }
             try {
+                prefsStore.setLastBackupStorage(storage)
                 jobTracker.startGuestBackup(
                     node = guest.node,
                     type = guest.type,
@@ -395,24 +531,38 @@ class GuestsViewModel(
                     storage = storage,
                 )
                 _state.update {
-                    it.copy(busyKey = null, actionMessage = "Backup gestartet für ${guest.name}")
+                    it.copy(busyKey = null, actionMessage = l10n.get(R.string.toast_backup_started_for, guest.name))
                 }
             } catch (e: Exception) {
                 _state.update {
-                    it.copy(busyKey = null, error = e.message ?: "Backup fehlgeschlagen")
+                    it.copy(busyKey = null, error = e.message ?: l10n.get(R.string.error_backup_failed))
                 }
             }
         }
+    }
+
+    /** One-tap backup using remembered storage, or first available. */
+    fun quickBackup(guest: GuestItem): Boolean {
+        val preferred = _state.value.lastBackupStorage
+        val storages = _state.value.backupStorages
+        val storage = when {
+            preferred != null && preferred in storages -> preferred
+            storages.size == 1 -> storages.first()
+            else -> null
+        } ?: return false
+        startBackup(guest, storage)
+        return true
     }
 
     fun backupProgress(guest: GuestItem) =
         jobTracker.backupProgressFor(guest.node, guest.vmid)
 
     companion object {
-        fun factory(api: ApiClient, jobTracker: JobTracker) = object : ViewModelProvider.Factory {
-            @Suppress("UNCHECKED_CAST")
-            override fun <T : ViewModel> create(modelClass: Class<T>): T =
-                GuestsViewModel(api, jobTracker) as T
-        }
+        fun factory(api: ApiClient, jobTracker: JobTracker, prefsStore: PrefsStore, l10n: L10n) =
+            object : ViewModelProvider.Factory {
+                @Suppress("UNCHECKED_CAST")
+                override fun <T : ViewModel> create(modelClass: Class<T>): T =
+                    GuestsViewModel(api, jobTracker, prefsStore, l10n) as T
+            }
     }
 }

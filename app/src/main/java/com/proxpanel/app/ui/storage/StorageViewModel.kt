@@ -3,7 +3,9 @@ package com.proxpanel.app.ui.storage
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.proxpanel.app.R
 import com.proxpanel.app.data.ApiClient
+import com.proxpanel.app.util.L10n
 import com.proxpanel.app.data.ClusterResource
 import com.proxpanel.app.data.toNodeOrNull
 import com.proxpanel.app.data.toStorageOrNull
@@ -21,7 +23,10 @@ data class StorageUiState(
     val error: String? = null,
 )
 
-class StorageViewModel(private val api: ApiClient) : ViewModel() {
+class StorageViewModel(
+    private val api: ApiClient,
+    private val l10n: L10n,
+) : ViewModel() {
     private val _state = MutableStateFlow(StorageUiState())
     val state: StateFlow<StorageUiState> = _state.asStateFlow()
 
@@ -51,16 +56,16 @@ class StorageViewModel(private val api: ApiClient) : ViewModel() {
                 }
             } catch (e: Exception) {
                 _state.update {
-                    it.copy(loading = false, refreshing = false, error = e.message ?: "Failed")
+                    it.copy(loading = false, refreshing = false, error = e.message ?: l10n.get(R.string.error_failed))
                 }
             }
         }
     }
 
     companion object {
-        fun factory(api: ApiClient) = object : ViewModelProvider.Factory {
+        fun factory(api: ApiClient, l10n: L10n) = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
-            override fun <T : ViewModel> create(modelClass: Class<T>): T = StorageViewModel(api) as T
+            override fun <T : ViewModel> create(modelClass: Class<T>): T = StorageViewModel(api, l10n) as T
         }
     }
 }

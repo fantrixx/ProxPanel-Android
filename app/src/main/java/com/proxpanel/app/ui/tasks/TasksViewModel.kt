@@ -3,7 +3,9 @@ package com.proxpanel.app.ui.tasks
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.proxpanel.app.R
 import com.proxpanel.app.data.ApiClient
+import com.proxpanel.app.util.L10n
 import com.proxpanel.app.data.PveTask
 import com.proxpanel.app.data.toGuestOrNull
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -24,7 +26,10 @@ data class TasksUiState(
     val logLoading: Boolean = false,
 )
 
-class TasksViewModel(private val api: ApiClient) : ViewModel() {
+class TasksViewModel(
+    private val api: ApiClient,
+    private val l10n: L10n,
+) : ViewModel() {
     private val _state = MutableStateFlow(TasksUiState())
     val state: StateFlow<TasksUiState> = _state.asStateFlow()
 
@@ -106,16 +111,16 @@ class TasksViewModel(private val api: ApiClient) : ViewModel() {
                 }
             } catch (e: Exception) {
                 _state.update {
-                    it.copy(loading = false, refreshing = false, error = e.message ?: "Failed")
+                    it.copy(loading = false, refreshing = false, error = e.message ?: l10n.get(R.string.error_failed))
                 }
             }
         }
     }
 
     companion object {
-        fun factory(api: ApiClient) = object : ViewModelProvider.Factory {
+        fun factory(api: ApiClient, l10n: L10n) = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
-            override fun <T : ViewModel> create(modelClass: Class<T>): T = TasksViewModel(api) as T
+            override fun <T : ViewModel> create(modelClass: Class<T>): T = TasksViewModel(api, l10n) as T
         }
     }
 }

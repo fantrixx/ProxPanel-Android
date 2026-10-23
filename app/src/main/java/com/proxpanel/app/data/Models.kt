@@ -37,6 +37,7 @@ data class ClusterResource(
     val content: String? = null,
     val shared: Int? = null,
     val plugintype: String? = null,
+    val tags: String? = null,
 )
 
 @Serializable
@@ -198,6 +199,7 @@ data class GuestItem(
     val diskread: Long? = null,
     val diskwrite: Long? = null,
     val resourceId: String = "",
+    val tags: String? = null,
 ) {
     val isRunning: Boolean
         get() = status.equals("running", ignoreCase = true)
@@ -245,6 +247,7 @@ fun ClusterResource.toGuestOrNull(): GuestItem? {
         diskread = diskread,
         diskwrite = diskwrite,
         resourceId = id.ifBlank { "$type/$vmid" },
+        tags = tags,
     )
 }
 

@@ -3,7 +3,9 @@ package com.proxpanel.app.ui.create
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.proxpanel.app.R
 import com.proxpanel.app.data.ApiClient
+import com.proxpanel.app.util.L10n
 import com.proxpanel.app.data.CreateGuestResult
 import com.proxpanel.app.data.DiskStorage
 import com.proxpanel.app.data.MediaItem
@@ -47,6 +49,7 @@ data class CreateGuestUiState(
 
 class CreateGuestViewModel(
     private val api: ApiClient,
+    private val l10n: L10n,
     initialType: CreateGuestType = CreateGuestType.Lxc,
 ) : ViewModel() {
     private val _state = MutableStateFlow(
@@ -140,31 +143,31 @@ class CreateGuestViewModel(
             val disk = s.diskGiB.toIntOrNull()
             when {
                 s.node.isBlank() -> {
-                    _state.update { it.copy(error = "Node wählen") }
+                    _state.update { it.copy(error = l10n.get(R.string.error_select_node)) }
                     return@launch
                 }
                 vmid == null || vmid < 100 -> {
-                    _state.update { it.copy(error = "VMID ab 100 erforderlich") }
+                    _state.update { it.copy(error = l10n.get(R.string.error_vmid_min)) }
                     return@launch
                 }
                 s.name.isBlank() -> {
-                    _state.update { it.copy(error = "Name erforderlich") }
+                    _state.update { it.copy(error = l10n.get(R.string.error_name_required)) }
                     return@launch
                 }
                 s.storage.isBlank() -> {
-                    _state.update { it.copy(error = "Disk-Storage wählen") }
+                    _state.update { it.copy(error = l10n.get(R.string.error_select_disk_storage)) }
                     return@launch
                 }
                 cores == null || memory == null || disk == null -> {
-                    _state.update { it.copy(error = "Ressourcen prüfen") }
+                    _state.update { it.copy(error = l10n.get(R.string.error_check_resources)) }
                     return@launch
                 }
                 s.type == CreateGuestType.Lxc && s.ostemplate.isBlank() -> {
-                    _state.update { it.copy(error = "OS-Template wählen") }
+                    _state.update { it.copy(error = l10n.get(R.string.error_select_os_template)) }
                     return@launch
                 }
                 s.type == CreateGuestType.Lxc && s.password.length < 5 -> {
-                    _state.update { it.copy(error = "Passwort min. 5 Zeichen") }
+                    _state.update { it.copy(error = l10n.get(R.string.error_password_min)) }
                     return@launch
                 }
             }
@@ -203,7 +206,7 @@ class CreateGuestViewModel(
                 }
                 _state.update { it.copy(busy = false, created = result) }
             } catch (e: Exception) {
-                _state.update { it.copy(busy = false, error = e.message ?: "Create failed") }
+                _state.update { it.copy(busy = false, error = e.message ?: l10n.get(R.string.error_create_failed)) }
             }
         }
     }
@@ -305,11 +308,11 @@ class CreateGuestViewModel(
     }
 
     companion object {
-        fun factory(api: ApiClient, initialType: CreateGuestType = CreateGuestType.Lxc) =
+        fun factory(api: ApiClient, l10n: L10n, initialType: CreateGuestType = CreateGuestType.Lxc) =
             object : ViewModelProvider.Factory {
                 @Suppress("UNCHECKED_CAST")
                 override fun <T : ViewModel> create(modelClass: Class<T>): T =
-                    CreateGuestViewModel(api, initialType) as T
+                    CreateGuestViewModel(api, l10n, initialType) as T
             }
     }
 }

@@ -38,7 +38,7 @@ Native Android client for Proxmox VE — same core workflow as [ProxPanel web](h
 ## Not yet (web-only / heavier)
 
 - Interactive xterm console (opens Proxmox noVNC URL instead)
-- Guest logos / icon picker, media upload, CD/DVD attach UI
+- Media upload, CD/DVD attach UI
 - Server-side power/backup schedules (ProxPanel `.env` token runner)
 
 ## License

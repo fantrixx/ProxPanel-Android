@@ -41,8 +41,10 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.proxpanel.app.R
 import com.proxpanel.app.ui.components.ProxCard
 import com.proxpanel.app.ui.components.ProxLoadingState
 import com.proxpanel.app.ui.theme.ProxSpace
@@ -60,7 +62,7 @@ fun LoginScreen(
     }
 
     if (state.checkingSession) {
-        ProxLoadingState(label = "Sitzung prüfen…")
+        ProxLoadingState(label = stringResource(R.string.login_checking_session))
         return
     }
 
@@ -94,9 +96,9 @@ fun LoginScreen(
                 }
                 Spacer(Modifier.size(ProxSpace.md))
                 Column {
-                    Text("ProxPanel", style = MaterialTheme.typography.headlineLarge)
+                    Text(stringResource(R.string.app_name), style = MaterialTheme.typography.headlineLarge)
                     Text(
-                        "Proxmox VE · mobil",
+                        stringResource(R.string.login_tagline),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -106,13 +108,13 @@ fun LoginScreen(
             Spacer(Modifier.height(ProxSpace.xxl))
 
             ProxCard {
-                FieldLabel("Proxmox-Server")
+                FieldLabel(stringResource(R.string.login_field_server))
                 OutlinedTextField(
                     value = state.proxmoxHost,
                     onValueChange = { v -> viewModel.update { it.copy(proxmoxHost = v) } },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
-                    placeholder = { Text("192.168.1.10") },
+                    placeholder = { Text(stringResource(R.string.login_placeholder_host)) },
                     keyboardOptions = KeyboardOptions(
                         keyboardType = KeyboardType.Uri,
                         imeAction = ImeAction.Next,
@@ -123,13 +125,13 @@ fun LoginScreen(
                 )
 
                 Spacer(Modifier.height(ProxSpace.lg))
-                FieldLabel("Benutzername")
+                FieldLabel(stringResource(R.string.login_field_username))
                 OutlinedTextField(
                     value = state.username,
                     onValueChange = { v -> viewModel.update { it.copy(username = v) } },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
-                    placeholder = { Text("root") },
+                    placeholder = { Text(stringResource(R.string.login_placeholder_user)) },
                     keyboardOptions = KeyboardOptions(
                         capitalization = KeyboardCapitalization.None,
                         autoCorrectEnabled = false,
@@ -142,7 +144,7 @@ fun LoginScreen(
                 )
 
                 Spacer(Modifier.height(ProxSpace.lg))
-                FieldLabel("Passwort")
+                FieldLabel(stringResource(R.string.login_field_password))
                 OutlinedTextField(
                     value = state.password,
                     onValueChange = { v -> viewModel.update { it.copy(password = v) } },
@@ -159,7 +161,7 @@ fun LoginScreen(
                 )
 
                 Spacer(Modifier.height(ProxSpace.lg))
-                FieldLabel("Realm")
+                FieldLabel(stringResource(R.string.login_field_realm))
                 Row(horizontalArrangement = Arrangement.spacedBy(ProxSpace.sm)) {
                     listOf("pam", "pve").forEach { realm ->
                         FilterChip(
@@ -178,12 +180,12 @@ fun LoginScreen(
                 CheckRow(
                     checked = state.rememberCredentials,
                     onCheckedChange = { c -> viewModel.update { it.copy(rememberCredentials = c) } },
-                    label = "Login-Daten speichern",
+                    label = stringResource(R.string.login_remember_credentials),
                 )
                 CheckRow(
                     checked = state.verifyTls,
                     onCheckedChange = { c -> viewModel.update { it.copy(verifyTls = c) } },
-                    label = "TLS-Zertifikat prüfen",
+                    label = stringResource(R.string.login_verify_tls),
                 )
 
                 if (state.error != null) {
@@ -215,14 +217,14 @@ fun LoginScreen(
                             color = MaterialTheme.colorScheme.onPrimary,
                         )
                     } else {
-                        Text("Anmelden", style = MaterialTheme.typography.labelLarge)
+                        Text(stringResource(R.string.login_sign_in), style = MaterialTheme.typography.labelLarge)
                     }
                 }
             }
 
             Spacer(Modifier.height(ProxSpace.lg))
             Text(
-                "Direkte Anmeldung am Proxmox VE API (Port 8006).",
+                stringResource(R.string.login_footer),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

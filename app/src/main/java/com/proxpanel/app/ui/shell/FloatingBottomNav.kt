@@ -16,13 +16,17 @@ import androidx.compose.material.icons.automirrored.filled.ListAlt
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Inventory2
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.surfaceColorAtElevation
+import androidx.annotation.StringRes
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.res.stringResource
+import com.proxpanel.app.R
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -32,15 +36,16 @@ import androidx.compose.ui.unit.dp
 
 enum class HomeTab(
     val route: String,
-    val label: String,
+    @StringRes val labelRes: Int,
     val icon: ImageVector,
 ) {
-    Overview("overview", "Overview", Icons.Default.Dashboard),
-    Backups("backups", "Backups", Icons.Default.Inventory2),
-    Storage("storage", "Storage", Icons.Default.Storage),
-    Tasks("tasks", "Tasks", Icons.AutoMirrored.Filled.ListAlt),
-    Media("media", "Media", Icons.Default.Dns),
-    Apps("apps", "Apps", Icons.Default.Storefront),
+    Overview("overview", R.string.nav_overview, Icons.Default.Dashboard),
+    Backups("backups", R.string.nav_backups, Icons.Default.Inventory2),
+    Storage("storage", R.string.nav_storage, Icons.Default.Storage),
+    Tasks("tasks", R.string.nav_tasks, Icons.AutoMirrored.Filled.ListAlt),
+    Media("media", R.string.nav_media, Icons.Default.Dns),
+    Apps("apps", R.string.nav_apps, Icons.Default.Storefront),
+    Settings("settings", R.string.nav_settings, Icons.Default.Settings),
 }
 
 @Composable
@@ -66,7 +71,7 @@ fun FloatingBottomNav(
             HomeTab.entries.forEach { tab ->
                 PillNavItem(
                     icon = tab.icon,
-                    contentDescription = tab.label,
+                    contentDescription = stringResource(tab.labelRes),
                     selected = selectedRoute == tab.route,
                     onClick = { onSelect(tab) },
                 )

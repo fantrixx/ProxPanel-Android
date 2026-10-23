@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -25,12 +26,15 @@ import com.proxpanel.app.ui.backups.BackupsScreen
 import com.proxpanel.app.ui.backups.BackupsViewModel
 import com.proxpanel.app.ui.components.ActiveJobsBanner
 import com.proxpanel.app.ui.components.JobToastHost
+import com.proxpanel.app.ui.components.SuccessBurstOverlay
 import com.proxpanel.app.ui.guests.GuestsScreen
 import com.proxpanel.app.ui.guests.GuestsViewModel
 import com.proxpanel.app.ui.marketplace.MarketplaceScreen
 import com.proxpanel.app.ui.marketplace.MarketplaceViewModel
 import com.proxpanel.app.ui.media.MediaScreen
 import com.proxpanel.app.ui.media.MediaViewModel
+import com.proxpanel.app.ui.settings.SettingsScreen
+import com.proxpanel.app.ui.settings.SettingsViewModel
 import com.proxpanel.app.ui.storage.StorageScreen
 import com.proxpanel.app.ui.storage.StorageViewModel
 import com.proxpanel.app.ui.tasks.TasksScreen
@@ -47,7 +51,12 @@ fun HomeShell(
     val backStack by tabNav.currentBackStackEntryAsState()
     val current = backStack?.destination?.route
     val guestsVm: GuestsViewModel = viewModel(
-        factory = GuestsViewModel.factory(container.api, container.jobTracker),
+        factory = GuestsViewModel.factory(
+            container.api,
+            container.jobTracker,
+            container.prefsStore,
+            container.l10n,
+        ),
     )
     val jobTracker = container.jobTracker
 
@@ -91,25 +100,44 @@ fun HomeShell(
                     }
                     composable(HomeTab.Backups.route) {
                         val vm: BackupsViewModel = viewModel(
-                            factory = BackupsViewModel.factory(container.api, jobTracker),
+                            factory = BackupsViewModel.factory(
+                                container.api,
+                                jobTracker,
+                                container.l10n,
+                                container.prefsStore,
+                            ),
                         )
                         BackupsScreen(viewModel = vm)
                     }
                     composable(HomeTab.Storage.route) {
-                        val vm: StorageViewModel = viewModel(factory = StorageViewModel.factory(container.api))
+                        val vm: StorageViewModel = viewModel(
+                            factory = StorageViewModel.factory(container.api, container.l10n),
+                        )
                         StorageScreen(viewModel = vm)
                     }
                     composable(HomeTab.Tasks.route) {
-                        val vm: TasksViewModel = viewModel(factory = TasksViewModel.factory(container.api))
+                        val vm: TasksViewModel = viewModel(
+                            factory = TasksViewModel.factory(container.api, container.l10n),
+                        )
                         TasksScreen(viewModel = vm)
                     }
                     composable(HomeTab.Media.route) {
-                        val vm: MediaViewModel = viewModel(factory = MediaViewModel.factory(container.api))
+                        val vm: MediaViewModel = viewModel(
+                            factory = MediaViewModel.factory(container.api, container.l10n),
+                        )
                         MediaScreen(viewModel = vm)
                     }
                     composable(HomeTab.Apps.route) {
-                        val vm: MarketplaceViewModel = viewModel(factory = MarketplaceViewModel.factory())
+                        val vm: MarketplaceViewModel = viewModel(
+                            factory = MarketplaceViewModel.factory(container.l10n),
+                        )
                         MarketplaceScreen(viewModel = vm)
+                    }
+                    composable(HomeTab.Settings.route) {
+                        val vm: SettingsViewModel = viewModel(
+                            factory = SettingsViewModel.factory(container.prefsStore),
+                        )
+                        SettingsScreen(viewModel = vm)
                     }
                 }
 
@@ -134,6 +162,12 @@ fun HomeShell(
                         .align(Alignment.BottomCenter)
                         .navigationBarsPadding()
                         .padding(bottom = 100.dp),
+                )
+
+                val celebration by jobTracker.celebration.collectAsState()
+                SuccessBurstOverlay(
+                    celebration = celebration,
+                    onDismiss = jobTracker::clearCelebration,
                 )
             }
         }

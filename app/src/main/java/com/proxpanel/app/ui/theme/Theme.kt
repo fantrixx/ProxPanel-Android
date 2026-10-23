@@ -1,20 +1,18 @@
 package com.proxpanel.app.ui.theme
 
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.proxpanel.app.data.AccentChoice
 
-// ProxPanel brand — Proxmox orange on deep slate (one cohesive dark product shell).
 val ProxBg = Color(0xFF0A0C10)
 val ProxSurface = Color(0xFF12161E)
 val ProxSurface2 = Color(0xFF1A2030)
@@ -32,15 +30,49 @@ val ProxVmContainer = Color(0xFF1A2748)
 val ProxCt = Color(0xFF2EC4A4)
 val ProxCtContainer = Color(0xFF12352E)
 
-private val DarkColors = darkColorScheme(
-    primary = ProxAccent,
+data class AccentPalette(
+    val primary: Color,
+    val primaryContainer: Color,
+    val onPrimaryContainer: Color,
+    val secondary: Color,
+)
+
+fun accentPalette(choice: AccentChoice): AccentPalette = when (choice) {
+    AccentChoice.Orange -> AccentPalette(
+        primary = Color(0xFFFF7A1A),
+        primaryContainer = Color(0xFF3D2208),
+        onPrimaryContainer = Color(0xFFFFA05C),
+        secondary = Color(0xFFFFA05C),
+    )
+    AccentChoice.Blue -> AccentPalette(
+        primary = Color(0xFF5B8CFF),
+        primaryContainer = Color(0xFF152448),
+        onPrimaryContainer = Color(0xFFA8C0FF),
+        secondary = Color(0xFF8EB0FF),
+    )
+    AccentChoice.Teal -> AccentPalette(
+        primary = Color(0xFF2EC4A4),
+        primaryContainer = Color(0xFF0E2F28),
+        onPrimaryContainer = Color(0xFF7EEAD3),
+        secondary = Color(0xFF5FDBBF),
+    )
+    AccentChoice.Magenta -> AccentPalette(
+        primary = Color(0xFFE85DFF),
+        primaryContainer = Color(0xFF3A153F),
+        onPrimaryContainer = Color(0xFFF5B0FF),
+        secondary = Color(0xFFEF8FFF),
+    )
+}
+
+private fun darkColors(accent: AccentPalette) = darkColorScheme(
+    primary = accent.primary,
     onPrimary = Color(0xFF1A0C00),
-    primaryContainer = Color(0xFF3D2208),
-    onPrimaryContainer = ProxAccent2,
-    secondary = ProxAccent2,
+    primaryContainer = accent.primaryContainer,
+    onPrimaryContainer = accent.onPrimaryContainer,
+    secondary = accent.secondary,
     onSecondary = Color(0xFF1A0C00),
     secondaryContainer = Color(0xFF2A2118),
-    onSecondaryContainer = ProxAccent2,
+    onSecondaryContainer = accent.onPrimaryContainer,
     tertiary = ProxGood,
     onTertiary = Color(0xFF002214),
     background = ProxBg,
@@ -60,25 +92,6 @@ private val DarkColors = darkColorScheme(
     onError = Color.Black,
     errorContainer = Color(0xFF3D1515),
     onErrorContainer = Color(0xFFFFB4B4),
-)
-
-private val LightColors = lightColorScheme(
-    primary = Color(0xFFE56A00),
-    onPrimary = Color.White,
-    primaryContainer = Color(0xFFFFE4CC),
-    onPrimaryContainer = Color(0xFF3D1E00),
-    secondary = Color(0xFF8A5A2B),
-    background = Color(0xFFF6F7FA),
-    onBackground = Color(0xFF12151C),
-    surface = Color.White,
-    onSurface = Color(0xFF12151C),
-    surfaceVariant = Color(0xFFECEFF5),
-    onSurfaceVariant = Color(0xFF5B6475),
-    surfaceContainerLow = Color(0xFFF8F9FC),
-    surfaceContainer = Color(0xFFF0F2F7),
-    surfaceContainerHigh = Color(0xFFE8EBF2),
-    outline = Color(0xFFD0D6E1),
-    error = Color(0xFFC62828),
 )
 
 val ProxShapes = Shapes(
@@ -171,12 +184,11 @@ object ProxSpace {
 
 @Composable
 fun ProxPanelTheme(
-    darkTheme: Boolean = true,
+    accent: AccentChoice = AccentChoice.Orange,
     content: @Composable () -> Unit,
 ) {
-    val colors = if (darkTheme) DarkColors else LightColors
     MaterialTheme(
-        colorScheme = colors,
+        colorScheme = darkColors(accentPalette(accent)),
         typography = ProxTypography,
         shapes = ProxShapes,
         content = content,

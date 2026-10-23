@@ -41,6 +41,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.res.stringResource
+import com.proxpanel.app.R
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -84,11 +86,11 @@ fun CreateGuestScreen(
         snackbarHost = { SnackbarHost(snackbar) },
         topBar = {
             ProxTopBar(
-                title = if (state.type == CreateGuestType.Lxc) "Neuer Container" else "Neue VM",
-                subtitle = "Wie in ProxPanel Web — nur das Nötige",
+                title = if (state.type == CreateGuestType.Lxc) stringResource(R.string.create_title_lxc) else stringResource(R.string.create_title_vm),
+                subtitle = stringResource(R.string.create_subtitle),
                 navigationIcon = {
                     IconButton(onClick = onBack, enabled = !state.busy) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Zurück")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back))
                     }
                 },
             )
@@ -99,7 +101,7 @@ fun CreateGuestScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(padding),
-                label = "Cluster laden…",
+                label = stringResource(R.string.create_loading_cluster),
             )
             return@Scaffold
         }
@@ -117,7 +119,7 @@ fun CreateGuestScreen(
                     selected = state.type == CreateGuestType.Lxc,
                     onClick = { viewModel.setType(CreateGuestType.Lxc) },
                     enabled = !state.busy,
-                    label = { Text("Container") },
+                    label = { Text(stringResource(R.string.create_type_container)) },
                     colors = FilterChipDefaults.filterChipColors(
                         selectedContainerColor = ProxCtContainer,
                         selectedLabelColor = ProxCt,
@@ -136,10 +138,10 @@ fun CreateGuestScreen(
             }
 
             Spacer(Modifier.height(ProxSpace.lg))
-            SectionLabel("Platzierung")
+            SectionLabel(stringResource(R.string.create_section_placement))
             ProxCard {
                 DropdownField(
-                    label = "Node",
+                    label = stringResource(R.string.create_field_node),
                     value = state.node,
                     options = state.nodes,
                     enabled = !state.busy,
@@ -162,9 +164,9 @@ fun CreateGuestScreen(
                     value = state.name,
                     onValueChange = { viewModel.patch(name = it) },
                     modifier = Modifier.fillMaxWidth(),
-                    label = { Text(if (state.type == CreateGuestType.Lxc) "Hostname" else "Name") },
+                    label = { Text(stringResource(if (state.type == CreateGuestType.Lxc) R.string.create_field_hostname else R.string.create_field_name)) },
                     placeholder = {
-                        Text(if (state.type == CreateGuestType.Lxc) "nextcloud" else "ubuntu-desktop")
+                        Text(stringResource(if (state.type == CreateGuestType.Lxc) R.string.create_placeholder_lxc else R.string.create_placeholder_vm))
                     },
                     singleLine = true,
                     enabled = !state.busy,
@@ -175,7 +177,7 @@ fun CreateGuestScreen(
 
             Spacer(Modifier.height(ProxSpace.lg))
             SectionLabel(
-                if (state.type == CreateGuestType.Lxc) "Template & Disk" else "Disk & Install-ISO",
+                if (state.type == CreateGuestType.Lxc) stringResource(R.string.create_section_template_disk) else stringResource(R.string.create_section_disk_iso),
             )
             ProxCard {
                 if (state.type == CreateGuestType.Lxc) {
@@ -190,7 +192,7 @@ fun CreateGuestScreen(
                     if (state.templates.isEmpty()) {
                         Spacer(Modifier.height(ProxSpace.sm))
                         Text(
-                            "Keine Templates — unter Media eines herunterladen.",
+                            stringResource(R.string.create_no_templates_hint),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -198,7 +200,7 @@ fun CreateGuestScreen(
                     Spacer(Modifier.height(ProxSpace.md))
                 } else {
                     DropdownField(
-                        label = "Install-ISO (optional)",
+                        label = stringResource(R.string.create_field_iso_optional),
                         value = state.iso,
                         options = listOf("") + state.isos.map { it.volid },
                         optionLabel = {
@@ -210,7 +212,7 @@ fun CreateGuestScreen(
                     Spacer(Modifier.height(ProxSpace.md))
                 }
                 DropdownField(
-                    label = "Disk-Storage",
+                    label = stringResource(R.string.create_field_disk_storage),
                     value = state.storage,
                     options = state.storages.map { it.storage }.distinct(),
                     enabled = !state.busy,
@@ -221,7 +223,7 @@ fun CreateGuestScreen(
                     value = state.diskGiB,
                     onValueChange = { viewModel.patch(diskGiB = it.filter { c -> c.isDigit() }) },
                     modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Disk (GiB)") },
+                    label = { Text(stringResource(R.string.create_field_disk_gib)) },
                     singleLine = true,
                     enabled = !state.busy,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -232,13 +234,13 @@ fun CreateGuestScreen(
 
             if (state.type == CreateGuestType.Lxc) {
                 Spacer(Modifier.height(ProxSpace.lg))
-                SectionLabel("Zugang")
+                SectionLabel(stringResource(R.string.create_section_access))
                 ProxCard {
                     OutlinedTextField(
                         value = state.password,
                         onValueChange = { viewModel.patch(password = it) },
                         modifier = Modifier.fillMaxWidth(),
-                        label = { Text("Root-Passwort") },
+                        label = { Text(stringResource(R.string.create_field_root_password)) },
                         singleLine = true,
                         enabled = !state.busy,
                         visualTransformation = if (state.showPassword) {
@@ -254,11 +256,11 @@ fun CreateGuestScreen(
                         TextButton(
                             onClick = { viewModel.patch(showPassword = !state.showPassword) },
                             enabled = !state.busy,
-                        ) { Text(if (state.showPassword) "Verbergen" else "Zeigen") }
+                        ) { Text(if (state.showPassword) stringResource(R.string.create_hide_password) else stringResource(R.string.create_show_password)) }
                         TextButton(
                             onClick = viewModel::generatePassword,
                             enabled = !state.busy,
-                        ) { Text("Generieren") }
+                        ) { Text(stringResource(R.string.create_generate_password)) }
                     }
                 }
             }
@@ -270,7 +272,7 @@ fun CreateGuestScreen(
                     onCheckedChange = { viewModel.patch(startAfter = it) },
                     enabled = !state.busy,
                 )
-                Text("Nach Erstellen starten", style = MaterialTheme.typography.bodyMedium)
+                Text(stringResource(R.string.create_start_after), style = MaterialTheme.typography.bodyMedium)
             }
 
             OutlinedButton(
@@ -279,18 +281,18 @@ fun CreateGuestScreen(
                 enabled = !state.busy,
                 shape = MaterialTheme.shapes.small,
             ) {
-                Text(if (state.showAdvanced) "Erweitert ausblenden" else "Erweiterte Optionen")
+                Text(if (state.showAdvanced) stringResource(R.string.create_hide_advanced) else stringResource(R.string.create_show_advanced))
             }
 
             if (state.showAdvanced) {
                 Spacer(Modifier.height(ProxSpace.md))
-                SectionLabel("Ressourcen")
+                SectionLabel(stringResource(R.string.create_section_resources))
                 ProxCard {
                     OutlinedTextField(
                         value = state.cores,
                         onValueChange = { viewModel.patch(cores = it.filter { c -> c.isDigit() }) },
                         modifier = Modifier.fillMaxWidth(),
-                        label = { Text("CPU Cores") },
+                        label = { Text(stringResource(R.string.create_field_cpu_cores)) },
                         singleLine = true,
                         enabled = !state.busy,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -302,7 +304,7 @@ fun CreateGuestScreen(
                         value = state.memory,
                         onValueChange = { viewModel.patch(memory = it.filter { c -> c.isDigit() }) },
                         modifier = Modifier.fillMaxWidth(),
-                        label = { Text("Memory (MiB)") },
+                        label = { Text(stringResource(R.string.field_memory_mib)) },
                         singleLine = true,
                         enabled = !state.busy,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -315,7 +317,7 @@ fun CreateGuestScreen(
                             value = state.swap,
                             onValueChange = { viewModel.patch(swap = it.filter { c -> c.isDigit() }) },
                             modifier = Modifier.fillMaxWidth(),
-                            label = { Text("Swap (MiB)") },
+                            label = { Text(stringResource(R.string.field_swap_mib)) },
                             singleLine = true,
                             enabled = !state.busy,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -325,17 +327,17 @@ fun CreateGuestScreen(
                     }
                 }
                 Spacer(Modifier.height(ProxSpace.md))
-                SectionLabel("Netzwerk")
+                SectionLabel(stringResource(R.string.create_section_network))
                 ProxCard {
                     DropdownField(
-                        label = "Bridge",
+                        label = stringResource(R.string.create_field_bridge),
                         value = state.bridge,
                         options = state.bridges.map { it.iface }.ifEmpty { listOf(state.bridge.ifBlank { "vmbr0" }) },
                         enabled = !state.busy,
                         onSelect = { viewModel.patch(bridge = it) },
                     )
                     Spacer(Modifier.height(ProxSpace.sm))
-                    Text("IP: DHCP", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(stringResource(R.string.create_ip_dhcp), color = MaterialTheme.colorScheme.onSurfaceVariant)
                     if (state.type == CreateGuestType.Lxc) {
                         Spacer(Modifier.height(ProxSpace.sm))
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -344,7 +346,7 @@ fun CreateGuestScreen(
                                 onCheckedChange = { viewModel.patch(unprivileged = it) },
                                 enabled = !state.busy,
                             )
-                            Text("Unprivileged (empfohlen)", style = MaterialTheme.typography.bodyMedium)
+                            Text(stringResource(R.string.create_unprivileged_recommended), style = MaterialTheme.typography.bodyMedium)
                         }
                     }
                 }
@@ -361,9 +363,9 @@ fun CreateGuestScreen(
             ) {
                 Text(
                     when {
-                        state.busy -> "Erstellen…"
-                        state.type == CreateGuestType.Lxc -> "Container erstellen"
-                        else -> "VM erstellen"
+                        state.busy -> stringResource(R.string.create_busy)
+                        state.type == CreateGuestType.Lxc -> stringResource(R.string.create_button_lxc)
+                        else -> stringResource(R.string.create_button_vm)
                     },
                 )
             }
@@ -373,7 +375,7 @@ fun CreateGuestScreen(
                 enabled = !state.busy,
                 modifier = Modifier.fillMaxWidth(),
                 shape = MaterialTheme.shapes.small,
-            ) { Text("Abbrechen") }
+            ) { Text(stringResource(R.string.action_cancel)) }
         }
     }
 }

@@ -767,6 +767,7 @@ class ApiClient(
                 template = obj.int("template"),
                 lock = obj.string("lock"),
                 qmpstatus = obj.string("qmpstatus"),
+                tags = obj.string("tags"),
             )
         }
     }
@@ -799,6 +800,7 @@ class ApiClient(
             content = obj.string("content"),
             shared = obj.int("shared"),
             plugintype = obj.string("plugintype"),
+            tags = obj.string("tags"),
         )
     }
 

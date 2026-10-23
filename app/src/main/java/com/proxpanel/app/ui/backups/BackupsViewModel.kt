@@ -6,7 +6,10 @@ import androidx.lifecycle.viewModelScope
 import com.proxpanel.app.data.ApiClient
 import com.proxpanel.app.data.BackupOverviewGuest
 import com.proxpanel.app.data.BackupStorage
+import com.proxpanel.app.data.PrefsStore
+import com.proxpanel.app.R
 import com.proxpanel.app.jobs.JobTracker
+import com.proxpanel.app.util.L10n
 import com.proxpanel.app.util.formatBytes
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -34,6 +37,8 @@ data class BackupsUiState(
 class BackupsViewModel(
     private val api: ApiClient,
     private val jobTracker: JobTracker,
+    private val l10n: L10n,
+    private val prefsStore: PrefsStore? = null,
 ) : ViewModel() {
     private val _state = MutableStateFlow(BackupsUiState())
     val state: StateFlow<BackupsUiState> = _state.asStateFlow()
@@ -72,7 +77,7 @@ class BackupsViewModel(
                 }
             } catch (e: Exception) {
                 _state.update {
-                    it.copy(loading = false, refreshing = false, error = e.message ?: "Failed")
+                    it.copy(loading = false, refreshing = false, error = e.message ?: l10n.get(R.string.error_failed))
                 }
             }
         }
@@ -96,6 +101,7 @@ class BackupsViewModel(
                 )
             }
             try {
+                prefsStore?.setLastBackupStorage(storage)
                 jobTracker.startGuestBackup(
                     node = guest.node,
                     type = guest.type,
@@ -108,7 +114,7 @@ class BackupsViewModel(
                 _state.update {
                     it.copy(
                         busyKey = null,
-                        message = "Backup gestartet für ${guest.name}",
+                        message = l10n.get(R.string.toast_backup_started_for, guest.name),
                     )
                 }
             } catch (e: Exception) {
@@ -118,7 +124,7 @@ class BackupsViewModel(
                     it.copy(
                         busyKey = null,
                         runningKeys = it.runningKeys - key,
-                        error = e.message ?: "Backup failed",
+                        error = e.message ?: l10n.get(R.string.error_backup_failed),
                     )
                 }
             }
@@ -148,11 +154,11 @@ class BackupsViewModel(
                     force = force,
                 )
                 _state.update {
-                    it.copy(busyKey = null, message = "Restore gestartet → VMID $targetVmid")
+                    it.copy(busyKey = null, message = l10n.get(R.string.toast_restore_started_vmid, targetVmid))
                 }
             } catch (e: Exception) {
                 _state.update {
-                    it.copy(busyKey = null, error = e.message ?: "Restore failed")
+                    it.copy(busyKey = null, error = e.message ?: l10n.get(R.string.error_restore_failed))
                 }
             }
         }
@@ -163,11 +169,11 @@ class BackupsViewModel(
             _state.update { it.copy(busyKey = guestKey(guest.node, guest.vmid), error = null) }
             try {
                 api.deleteBackup(guest.node, storage, volid)
-                _state.update { it.copy(busyKey = null, message = "Backup gelöscht") }
+                _state.update { it.copy(busyKey = null, message = l10n.get(R.string.toast_backup_deleted)) }
                 refresh()
             } catch (e: Exception) {
                 _state.update {
-                    it.copy(busyKey = null, error = e.message ?: "Delete failed")
+                    it.copy(busyKey = null, error = e.message ?: l10n.get(R.string.error_delete_failed))
                 }
             }
         }
@@ -188,7 +194,7 @@ class BackupsViewModel(
                     it.copy(
                         runningKeys = running,
                         message = when {
-                            finished.isNotEmpty() && it.message == null -> "Backup fertig"
+                            finished.isNotEmpty() && it.message == null -> l10n.get(R.string.toast_backup_finished)
                             else -> it.message
                         },
                     )
@@ -236,11 +242,12 @@ class BackupsViewModel(
             return parts.getOrNull(6)?.toIntOrNull()
         }
 
-        fun factory(api: ApiClient, jobTracker: JobTracker) = object : ViewModelProvider.Factory {
-            @Suppress("UNCHECKED_CAST")
-            override fun <T : ViewModel> create(modelClass: Class<T>): T =
-                BackupsViewModel(api, jobTracker) as T
-        }
+        fun factory(api: ApiClient, jobTracker: JobTracker, l10n: L10n, prefsStore: PrefsStore? = null) =
+            object : ViewModelProvider.Factory {
+                @Suppress("UNCHECKED_CAST")
+                override fun <T : ViewModel> create(modelClass: Class<T>): T =
+                    BackupsViewModel(api, jobTracker, l10n, prefsStore) as T
+            }
     }
 }
 

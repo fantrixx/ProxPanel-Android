@@ -57,14 +57,15 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.proxpanel.app.R
 import com.proxpanel.app.jobs.ActiveJob
 import com.proxpanel.app.jobs.AppToast
+import com.proxpanel.app.jobs.JobKind
 import com.proxpanel.app.jobs.JobSnapshot
 import com.proxpanel.app.jobs.JobTracker
 import com.proxpanel.app.jobs.ToastKind
-import com.proxpanel.app.jobs.formatJobMeta
-import com.proxpanel.app.jobs.kindLabel
 import com.proxpanel.app.ui.theme.ProxBad
 import com.proxpanel.app.ui.theme.ProxGood
 import com.proxpanel.app.ui.theme.ProxSpace
@@ -212,9 +213,24 @@ private fun MultiJobBanner(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         text = when {
-                            activeRunning -> "${runningCount.coerceAtLeast(1)} active job${if (runningCount == 1) "" else "s"}"
-                            failedCount > 0 -> "$failedCount job${if (failedCount == 1) "" else "s"} failed"
-                            else -> "${doneCount.coerceAtLeast(jobs.size)} job${if (jobs.size == 1) "" else "s"} finished"
+                            activeRunning -> if (runningCount == 1) {
+                                stringResource(R.string.jobs_active_one)
+                            } else {
+                                stringResource(R.string.jobs_active_many, runningCount.coerceAtLeast(1))
+                            }
+                            failedCount > 0 -> if (failedCount == 1) {
+                                stringResource(R.string.jobs_failed_one)
+                            } else {
+                                stringResource(R.string.jobs_failed_many, failedCount)
+                            }
+                            else -> {
+                                val n = doneCount.coerceAtLeast(jobs.size)
+                                if (n == 1) {
+                                    stringResource(R.string.jobs_finished_one)
+                                } else {
+                                    stringResource(R.string.jobs_finished_many, n)
+                                }
+                            }
                         },
                         style = MaterialTheme.typography.titleSmall,
                         maxLines = 1,
@@ -238,7 +254,11 @@ private fun MultiJobBanner(
                     )
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        text = jobs.first().title + if (jobs.size > 1) " · +${jobs.size - 1} more" else "",
+                        text = jobs.first().title + if (jobs.size > 1) {
+                            " · " + stringResource(R.string.jobs_more, jobs.size - 1)
+                        } else {
+                            ""
+                        },
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
@@ -248,7 +268,7 @@ private fun MultiJobBanner(
             }
             if (onOpenTasks != null) {
                 TextButton(onClick = onOpenTasks) {
-                    Text("Tasks")
+                    Text(stringResource(R.string.nav_tasks))
                 }
             }
         }
@@ -288,7 +308,7 @@ private fun JobBannerRow(
         snap.failed -> "fail"
         else -> "ok"
     }
-    val title = if (snap.running) job.title else kindLabel(job.kind, phase)
+    val title = if (snap.running) job.title else localizedKindLabel(job.kind, phase)
     val pulse = rememberInfiniteTransition(label = "job-pulse")
     val pulseAlpha by pulse.animateFloat(
         initialValue = 0.55f,
@@ -335,13 +355,13 @@ private fun JobBannerRow(
                     horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
                     Text(
-                        text = formatJobMeta(snap, job),
+                        text = localizedJobMeta(snap, job),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     if (snap.etaSec != null) {
                         Text(
-                            text = "~${formatDuration(snap.etaSec)} left",
+                            text = stringResource(R.string.job_eta_left, formatDuration(snap.etaSec)),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -359,11 +379,11 @@ private fun JobBannerRow(
                 }
             }
             IconButton(onClick = onDismiss) {
-                Icon(Icons.Default.Close, contentDescription = "Dismiss")
+                Icon(Icons.Default.Close, contentDescription = stringResource(R.string.action_dismiss))
             }
         }
         if (onOpenTasks != null) {
-            TextButton(onClick = onOpenTasks) { Text("Open Tasks") }
+            TextButton(onClick = onOpenTasks) { Text(stringResource(R.string.jobs_open_tasks)) }
         }
     }
 }
@@ -458,7 +478,11 @@ fun GuestBackupProgressBlock(
                     Spacer(Modifier.width(8.dp))
                 }
                 Text(
-                    text = if (failed) "Backup failed" else "Backup in progress",
+                    text = if (failed) {
+                        stringResource(R.string.backup_failed)
+                    } else {
+                        stringResource(R.string.backup_in_progress)
+                    },
                     style = MaterialTheme.typography.labelLarge,
                     color = accent,
                 )
@@ -478,4 +502,33 @@ fun GuestBackupProgressBlock(
             modifier = Modifier.height(6.dp),
         )
     }
+}
+
+@Composable
+private fun localizedKindLabel(kind: JobKind, phase: String): String {
+    val base = when (kind) {
+        JobKind.Backup -> "Backup"
+        JobKind.Restore -> "Restore"
+        JobKind.Create -> "Create"
+        JobKind.Task -> "Task"
+    }
+    return when (phase) {
+        "ok" -> stringResource(R.string.job_kind_finished, base)
+        "fail" -> stringResource(R.string.job_kind_failed, base)
+        else -> base
+    }
+}
+
+@Composable
+private fun localizedJobMeta(snap: JobSnapshot, job: ActiveJob): String = when {
+    snap.running && snap.progress != null ->
+        "${snap.progress.toInt()}% · ${formatDuration(snap.elapsedSec)}"
+    snap.running && job.upid.isNotBlank() ->
+        stringResource(R.string.job_meta_in_progress, formatDuration(snap.elapsedSec))
+    snap.running ->
+        stringResource(R.string.job_meta_starting, formatDuration(snap.elapsedSec))
+    snap.failed ->
+        stringResource(R.string.job_meta_failed_after, formatDuration(snap.elapsedSec)) +
+            if (snap.exitstatus.isNotBlank()) " · ${snap.exitstatus}" else ""
+    else -> stringResource(R.string.job_meta_done_in, formatDuration(snap.elapsedSec))
 }

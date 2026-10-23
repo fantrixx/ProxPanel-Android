@@ -34,11 +34,15 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.res.stringResource
+import com.proxpanel.app.R
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.proxpanel.app.data.GuestIconRecord
 import com.proxpanel.app.data.GuestItem
+import com.proxpanel.app.ui.components.GuestLogo
 import com.proxpanel.app.jobs.GuestJobProgress
 import com.proxpanel.app.ui.components.KindChip
 import com.proxpanel.app.ui.components.StatusBadge
@@ -52,12 +56,14 @@ import com.proxpanel.app.util.pendingLabelForAction
 @Composable
 fun GuestQuickSheet(
     guest: GuestItem,
+    iconRecord: GuestIconRecord?,
     storages: List<String>,
     pending: PendingPower?,
     backup: GuestJobProgress?,
     busy: Boolean,
     onDismiss: () -> Unit,
     onOpenDetail: () -> Unit,
+    onChangeLogo: () -> Unit,
     onPower: (String) -> Unit,
     onBackup: (String) -> Unit,
 ) {
@@ -81,6 +87,15 @@ fun GuestQuickSheet(
                 .padding(bottom = ProxSpace.xxl),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
+                GuestLogo(
+                    name = guest.name,
+                    tags = guest.tags,
+                    record = iconRecord,
+                    type = guest.type,
+                    size = 44.dp,
+                    onClick = onChangeLogo,
+                )
+                Spacer(Modifier.width(ProxSpace.sm))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = guest.name,
@@ -109,7 +124,7 @@ fun GuestQuickSheet(
                     pending = pendingVisual,
                 )
                 Text(
-                    text = "Up ${formatUptime(guest.uptime)}",
+                    text = stringResource(R.string.uptime_prefix, formatUptime(guest.uptime)),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -133,14 +148,14 @@ fun GuestQuickSheet(
                 if (running || pending?.action == "reboot") {
                     SheetAction(
                         icon = Icons.Default.PowerSettingsNew,
-                        label = "Shut down",
+                        label = stringResource(R.string.power_shutdown),
                         enabled = !locked,
                         modifier = Modifier.weight(1f),
                         onClick = { onPower("shutdown") },
                     )
                     SheetAction(
                         icon = Icons.Default.RestartAlt,
-                        label = "Restart",
+                        label = stringResource(R.string.power_reboot),
                         enabled = !locked,
                         modifier = Modifier.weight(1f),
                         onClick = { onPower("reboot") },
@@ -148,7 +163,7 @@ fun GuestQuickSheet(
                 } else {
                     SheetAction(
                         icon = Icons.Default.PlayArrow,
-                        label = "Start",
+                        label = stringResource(R.string.power_start),
                         enabled = !locked,
                         primary = true,
                         modifier = Modifier.weight(1f),
@@ -164,7 +179,7 @@ fun GuestQuickSheet(
                 if (running) {
                     SheetAction(
                         icon = Icons.Default.Stop,
-                        label = "Force stop",
+                        label = stringResource(R.string.power_force_stop),
                         enabled = !locked,
                         danger = true,
                         modifier = Modifier.weight(1f),
@@ -175,8 +190,8 @@ fun GuestQuickSheet(
                     icon = Icons.Default.CloudUpload,
                     label = when {
                         backingUp && backup?.progress != null -> "${backup.progress.toInt()}%"
-                        backingUp -> "Backup…"
-                        else -> "Backup"
+                        backingUp -> stringResource(R.string.quick_backup_ellipsis)
+                        else -> stringResource(R.string.power_backup)
                     },
                     enabled = !locked && storages.isNotEmpty(),
                     modifier = Modifier.weight(1f),
@@ -198,9 +213,17 @@ fun GuestQuickSheet(
                         },
                         modifier = Modifier.fillMaxWidth(),
                     ) {
-                        Text("Backup → $storage")
+                        Text(stringResource(R.string.quick_backup_to_storage, storage))
                     }
                 }
+            }
+
+            Spacer(Modifier.height(ProxSpace.sm))
+            TextButton(
+                onClick = onChangeLogo,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(stringResource(R.string.guest_icon_change))
             }
 
             Spacer(Modifier.height(ProxSpace.lg))
@@ -214,7 +237,7 @@ fun GuestQuickSheet(
             ) {
                 Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(8.dp))
-                Text("Open full details")
+                Text(stringResource(R.string.quick_open_details))
             }
         }
     }

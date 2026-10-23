@@ -1,6 +1,13 @@
 package com.proxpanel.app.ui.guests
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,21 +24,35 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items as gridItems
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material.icons.automirrored.filled.ViewList
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CloudUpload
+import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.PowerSettingsNew
+import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.ViewAgenda
 import androidx.compose.material.icons.outlined.Dns
+import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -45,9 +66,14 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.res.stringResource
+import com.proxpanel.app.R
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
@@ -58,19 +84,27 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.proxpanel.app.data.GuestIconRecord
 import com.proxpanel.app.data.GuestItem
 import com.proxpanel.app.data.GuestRates
+import com.proxpanel.app.data.guestIconKey
+import com.proxpanel.app.data.NodesViewMode
 import com.proxpanel.app.jobs.GuestJobProgress
 import com.proxpanel.app.jobs.JobTracker
+import com.proxpanel.app.ui.components.ClusterOverviewBar
 import com.proxpanel.app.ui.components.GuestBackupProgressBlock
+import com.proxpanel.app.ui.components.GuestLogo
 import com.proxpanel.app.ui.components.KindChip
 import com.proxpanel.app.ui.components.MetricBar
 import com.proxpanel.app.ui.components.ProxCard
@@ -79,7 +113,7 @@ import com.proxpanel.app.ui.components.ProxListPadding
 import com.proxpanel.app.ui.components.ProxLoadingState
 import com.proxpanel.app.ui.components.ProxSearchBar
 import com.proxpanel.app.ui.components.ProxTopBar
-import com.proxpanel.app.ui.components.Sparkline
+import com.proxpanel.app.ui.components.CpuSparkline
 import com.proxpanel.app.ui.components.StatusBadge
 import com.proxpanel.app.ui.theme.ProxBad
 import com.proxpanel.app.ui.theme.ProxCt
@@ -90,6 +124,7 @@ import com.proxpanel.app.ui.theme.ProxSpace
 import com.proxpanel.app.ui.theme.ProxVm
 import com.proxpanel.app.ui.theme.ProxVmContainer
 import com.proxpanel.app.ui.theme.ProxWarn
+import com.proxpanel.app.ui.util.rememberAppHaptics
 import com.proxpanel.app.util.cpuPct
 import com.proxpanel.app.util.formatBytes
 import com.proxpanel.app.util.formatBytesRate
@@ -113,13 +148,23 @@ fun GuestsScreen(
     val jobs by jobTracker.jobs.collectAsState()
     val jobSnaps by jobTracker.snapshots.collectAsState()
     var query by remember { mutableStateOf("") }
-    val typeFilter = state.typeFilter
-    val guests = remember(state.guests, typeFilter, query) {
-        filterGuests(state.guests, typeFilter, query)
+    val kindFilter = state.kindFilter
+    val statusFilter = state.statusFilter
+    val guests = remember(state.guests, kindFilter, statusFilter, query) {
+        filterGuests(state.guests, kindFilter, statusFilter, query)
     }
     val listState = rememberLazyListState()
     val lifecycleOwner = LocalLifecycleOwner.current
     var sheetGuest by remember { mutableStateOf<GuestItem?>(null) }
+    var iconPickerGuest by remember { mutableStateOf<GuestItem?>(null) }
+    var appearanceOpen by remember { mutableStateOf(false) }
+
+    fun iconFor(guest: GuestItem): GuestIconRecord? =
+        state.guestIcons[guestIconKey(guest.node, guest.type, guest.vmid)]
+    val haptics = rememberAppHaptics()
+    val filtersActive =
+        kindFilter != GuestKindFilter.All || statusFilter != GuestStatusFilter.All || query.isNotBlank()
+    val gridState = rememberLazyGridState()
 
     DisposableEffect(lifecycleOwner, viewModel) {
         val observer = LifecycleEventObserver { _, event ->
@@ -145,27 +190,57 @@ fun GuestsScreen(
                 ) { Text(confirm.confirm) }
             },
             dismissButton = {
-                TextButton(onClick = viewModel::dismissConfirm) { Text("Abbrechen") }
+                TextButton(onClick = viewModel::dismissConfirm) { Text(stringResource(R.string.action_cancel)) }
             },
             shape = MaterialTheme.shapes.large,
+        )
+    }
+
+    if (appearanceOpen) {
+        AppearanceDialog(
+            viewMode = state.viewMode,
+            onViewMode = {
+                haptics.tick()
+                viewModel.setViewMode(it)
+            },
+            onDismiss = { appearanceOpen = false },
+        )
+    }
+
+    iconPickerGuest?.let { g ->
+        GuestIconPicker(
+            guest = g,
+            current = iconFor(g),
+            onDismiss = { iconPickerGuest = null },
+            onSave = { record ->
+                viewModel.setGuestIcon(g, record)
+                iconPickerGuest = null
+            },
         )
     }
 
     sheetGuest?.let { g ->
         GuestQuickSheet(
             guest = g,
+            iconRecord = iconFor(g),
             storages = state.backupStorages,
             pending = state.pendingPower[g.key],
             backup = viewModel.backupProgress(g),
             busy = state.busyKey?.startsWith(g.key) == true,
             onDismiss = { sheetGuest = null },
             onOpenDetail = { onOpenGuest(g) },
+            onChangeLogo = {
+                sheetGuest = null
+                iconPickerGuest = g
+            },
             onPower = { action ->
                 sheetGuest = null
+                haptics.tick()
                 viewModel.requestPower(g, action)
             },
             onBackup = { storage ->
                 sheetGuest = null
+                haptics.confirm()
                 viewModel.startBackup(g, storage)
             },
         )
@@ -180,21 +255,25 @@ fun GuestsScreen(
                 containerColor = MaterialTheme.colorScheme.primary,
                 contentColor = MaterialTheme.colorScheme.onPrimary,
             ) {
-                Icon(Icons.Default.Add, contentDescription = "VM / CT erstellen")
+                Icon(Icons.Default.Add, contentDescription = stringResource(R.string.cd_create_vm_ct))
             }
         },
         topBar = {
             ProxTopBar(
-                title = "Overview",
+                title = stringResource(R.string.guests_title),
                 subtitle = state.user?.let {
                     "${it.username} · ${it.host.removePrefix("https://").removePrefix("http://")}"
                 },
+                embeddedInShell = true,
                 actions = {
+                    IconButton(onClick = { appearanceOpen = true }) {
+                        Icon(Icons.Default.Tune, contentDescription = stringResource(R.string.cd_view_options))
+                    }
                     IconButton(onClick = { viewModel.refresh() }) {
-                        Icon(Icons.Default.Refresh, contentDescription = "Refresh")
+                        Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.action_refresh))
                     }
                     IconButton(onClick = { viewModel.logout(onLogout) }) {
-                        Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = "Abmelden")
+                        Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = stringResource(R.string.cd_logout))
                     }
                 },
             )
@@ -211,15 +290,25 @@ fun GuestsScreen(
                 ProxSearchBar(
                     value = query,
                     onValueChange = { query = it },
-                    placeholder = "Name, VMID, IP, Node…",
+                    placeholder = stringResource(R.string.guests_search_placeholder),
                 )
 
+                if (state.guests.isNotEmpty() || state.cluster.nodesTotal > 0) {
+                    Spacer(Modifier.height(ProxSpace.sm))
+                    ClusterOverviewBar(
+                        overview = state.cluster,
+                        pulsing = state.refreshPulse || state.refreshing,
+                    )
+                }
+
                 if (state.guests.isNotEmpty()) {
+                    val filtersDefault =
+                        kindFilter == GuestKindFilter.All && statusFilter == GuestStatusFilter.All
                     Text(
-                        text = if (query.isBlank() && typeFilter == GuestTypeFilter.All) {
-                            "${state.guests.size} Gäste"
+                        text = if (query.isBlank() && filtersDefault) {
+                            stringResource(R.string.guests_count, state.guests.size)
                         } else {
-                            "${guests.size} von ${state.guests.size}"
+                            stringResource(R.string.guests_count_filtered, guests.size, state.guests.size)
                         },
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -230,29 +319,57 @@ fun GuestsScreen(
                 LazyRow(
                     contentPadding = PaddingValues(horizontal = ProxSpace.screen, vertical = ProxSpace.xs),
                     horizontalArrangement = Arrangement.spacedBy(ProxSpace.sm),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    items(GuestTypeFilter.entries, key = { it.name }) { filter ->
+                    items(
+                        listOf(GuestKindFilter.Ct, GuestKindFilter.Vm),
+                        key = { "kind-${it.name}" },
+                    ) { filter ->
                         val (selBg, selFg) = when (filter) {
-                            GuestTypeFilter.Vm -> ProxVmContainer to ProxVm
-                            GuestTypeFilter.Ct -> ProxCtContainer to ProxCt
-                            GuestTypeFilter.Running -> ProxGood.copy(alpha = 0.18f) to ProxGood
-                            GuestTypeFilter.Stopped -> ProxMuted.copy(alpha = 0.18f) to ProxMuted
-                            GuestTypeFilter.All -> MaterialTheme.colorScheme.primaryContainer to
+                            GuestKindFilter.Vm -> ProxVmContainer to ProxVm
+                            GuestKindFilter.Ct -> ProxCtContainer to ProxCt
+                            GuestKindFilter.All -> MaterialTheme.colorScheme.primaryContainer to
                                 MaterialTheme.colorScheme.onPrimaryContainer
                         }
                         FilterChip(
-                            selected = typeFilter == filter,
-                            onClick = { viewModel.setTypeFilter(filter) },
+                            selected = kindFilter == filter,
+                            onClick = { viewModel.setKindFilter(filter) },
                             label = {
-                                Text(
-                                    when (filter) {
-                                        GuestTypeFilter.All -> "Alle"
-                                        GuestTypeFilter.Ct -> "CT"
-                                        GuestTypeFilter.Vm -> "VM"
-                                        GuestTypeFilter.Running -> "Running"
-                                        GuestTypeFilter.Stopped -> "Stopped"
-                                    },
-                                )
+                                Text(if (filter == GuestKindFilter.Ct) "CT" else "VM")
+                            },
+                            shape = MaterialTheme.shapes.small,
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = selBg,
+                                selectedLabelColor = selFg,
+                                containerColor = Color.Transparent,
+                                labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            ),
+                        )
+                    }
+                    item(key = "filter-sep") {
+                        Box(
+                            modifier = Modifier
+                                .padding(horizontal = 4.dp)
+                                .width(1.dp)
+                                .height(22.dp)
+                                .background(MaterialTheme.colorScheme.outlineVariant),
+                        )
+                    }
+                    items(
+                        listOf(GuestStatusFilter.Running, GuestStatusFilter.Stopped),
+                        key = { "status-${it.name}" },
+                    ) { filter ->
+                        val (selBg, selFg) = when (filter) {
+                            GuestStatusFilter.Running -> ProxGood.copy(alpha = 0.18f) to ProxGood
+                            GuestStatusFilter.Stopped -> ProxMuted.copy(alpha = 0.18f) to ProxMuted
+                            GuestStatusFilter.All -> MaterialTheme.colorScheme.primaryContainer to
+                                MaterialTheme.colorScheme.onPrimaryContainer
+                        }
+                        FilterChip(
+                            selected = statusFilter == filter,
+                            onClick = { viewModel.setStatusFilter(filter) },
+                            label = {
+                                Text(if (filter == GuestStatusFilter.Running) stringResource(R.string.status_running) else stringResource(R.string.status_stopped))
                             },
                             shape = MaterialTheme.shapes.small,
                             colors = FilterChipDefaults.filterChipColors(
@@ -266,44 +383,158 @@ fun GuestsScreen(
                 }
 
                 when {
-                    state.loading && state.guests.isEmpty() -> ProxLoadingState(label = "Gäste laden…")
+                    state.loading && state.guests.isEmpty() -> ProxLoadingState(label = stringResource(R.string.guests_loading))
                     guests.isEmpty() -> ProxEmptyState(
                         title = when {
-                            state.guests.isEmpty() -> state.error ?: "Keine Gäste"
-                            else -> "Keine Treffer"
+                            state.guests.isEmpty() -> state.error ?: stringResource(R.string.guests_empty_none)
+                            statusFilter == GuestStatusFilter.Running -> stringResource(R.string.guests_empty_running)
+                            statusFilter == GuestStatusFilter.Stopped -> stringResource(R.string.guests_empty_stopped)
+                            kindFilter == GuestKindFilter.Vm -> stringResource(R.string.guests_empty_vms)
+                            kindFilter == GuestKindFilter.Ct -> stringResource(R.string.guests_empty_cts)
+                            else -> stringResource(R.string.empty_no_results)
                         },
                         subtitle = if (state.guests.isEmpty()) {
-                            "Pull to refresh oder Verbindung prüfen"
+                            stringResource(R.string.pull_to_refresh_hint)
                         } else {
-                            "Filter oder Suche anpassen"
+                            stringResource(R.string.adjust_filters_hint)
                         },
                         icon = Icons.Outlined.Dns,
+                        action = if (filtersActive && state.guests.isNotEmpty()) {
+                            {
+                                FilterChip(
+                                    selected = false,
+                                    onClick = {
+                                        query = ""
+                                        viewModel.clearFilters()
+                                    },
+                                    label = { Text(stringResource(R.string.show_all)) },
+                                    shape = MaterialTheme.shapes.small,
+                                )
+                            }
+                        } else {
+                            null
+                        },
                     )
                     else -> {
-                        // Keep cards live while job progress / snapshots update.
                         @Suppress("UNUSED_VARIABLE")
                         val jobTick = jobs.size + jobSnaps.hashCode()
-                        LazyColumn(
-                            state = listState,
-                            contentPadding = ProxListPadding,
-                            verticalArrangement = Arrangement.spacedBy(ProxSpace.listGap),
-                            modifier = Modifier.fillMaxSize(),
-                        ) {
-                            items(guests, key = { "${it.type}-${it.node}-${it.vmid}" }) { guest ->
-                                val gKey = guest.key
-                                GuestCard(
-                                    guest = guest,
-                                    storages = state.backupStorages,
-                                    rates = state.rates[gKey],
-                                    cpuHistory = state.cpuHistory[gKey].orEmpty(),
-                                    busy = state.busyKey?.startsWith(gKey) == true,
-                                    pending = state.pendingPower[gKey],
-                                    backup = viewModel.backupProgress(guest),
-                                    onClick = { onOpenGuest(guest) },
-                                    onLongClick = { sheetGuest = guest },
-                                    onPower = { action -> viewModel.requestPower(guest, action) },
-                                    onBackup = { storage -> viewModel.startBackup(guest, storage) },
-                                )
+                        when (state.viewMode) {
+                            NodesViewMode.Cards -> {
+                                LazyColumn(
+                                    state = listState,
+                                    contentPadding = ProxListPadding,
+                                    verticalArrangement = Arrangement.spacedBy(ProxSpace.listGap),
+                                    modifier = Modifier.fillMaxSize(),
+                                ) {
+                                    items(guests, key = { "${it.type}-${it.node}-${it.vmid}" }) { guest ->
+                                        GuestCard(
+                                            guest = guest,
+                                            iconRecord = iconFor(guest),
+                                            storages = state.backupStorages,
+                                            rates = state.rates[guest.key],
+                                            cpuHistory = state.cpuHistory[guest.key].orEmpty(),
+                                            pinned = guest.key in state.pinnedKeys,
+                                            lastBackupStorage = state.lastBackupStorage,
+                                            busy = state.busyKey?.startsWith(guest.key) == true,
+                                            pending = state.pendingPower[guest.key],
+                                            backup = viewModel.backupProgress(guest),
+                                            onLogoClick = { iconPickerGuest = guest },
+                                            onClick = { onOpenGuest(guest) },
+                                            onLongClick = {
+                                                haptics.longPress()
+                                                sheetGuest = guest
+                                            },
+                                            onTogglePin = {
+                                                haptics.tick()
+                                                viewModel.togglePinned(guest)
+                                            },
+                                            onPower = { action ->
+                                                haptics.tick()
+                                                viewModel.requestPower(guest, action)
+                                            },
+                                            onBackup = { storage ->
+                                                haptics.confirm()
+                                                viewModel.startBackup(guest, storage)
+                                            },
+                                            onQuickBackup = {
+                                                haptics.confirm()
+                                                viewModel.quickBackup(guest)
+                                            },
+                                        )
+                                    }
+                                }
+                            }
+                            NodesViewMode.Grid -> {
+                                LazyVerticalGrid(
+                                    columns = GridCells.Fixed(2),
+                                    state = gridState,
+                                    contentPadding = ProxListPadding,
+                                    verticalArrangement = Arrangement.spacedBy(ProxSpace.sm),
+                                    horizontalArrangement = Arrangement.spacedBy(ProxSpace.sm),
+                                    modifier = Modifier.fillMaxSize(),
+                                ) {
+                                    gridItems(guests, key = { "${it.type}-${it.node}-${it.vmid}" }) { guest ->
+                                        GuestTile(
+                                            guest = guest,
+                                            iconRecord = iconFor(guest),
+                                            pending = state.pendingPower[guest.key],
+                                            backup = viewModel.backupProgress(guest),
+                                            pinned = guest.key in state.pinnedKeys,
+                                            busy = state.busyKey?.startsWith(guest.key) == true,
+                                            onLogoClick = { iconPickerGuest = guest },
+                                            onClick = { onOpenGuest(guest) },
+                                            onLongClick = {
+                                                haptics.longPress()
+                                                sheetGuest = guest
+                                            },
+                                            onPower = { action ->
+                                                haptics.tick()
+                                                viewModel.requestPower(guest, action)
+                                            },
+                                            onQuickBackup = {
+                                                haptics.confirm()
+                                                if (!viewModel.quickBackup(guest)) {
+                                                    sheetGuest = guest
+                                                }
+                                            },
+                                        )
+                                    }
+                                }
+                            }
+                            NodesViewMode.Compact -> {
+                                LazyColumn(
+                                    state = listState,
+                                    contentPadding = ProxListPadding,
+                                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                                    modifier = Modifier.fillMaxSize(),
+                                ) {
+                                    items(guests, key = { "${it.type}-${it.node}-${it.vmid}" }) { guest ->
+                                        GuestCompactRow(
+                                            guest = guest,
+                                            iconRecord = iconFor(guest),
+                                            pending = state.pendingPower[guest.key],
+                                            backup = viewModel.backupProgress(guest),
+                                            pinned = guest.key in state.pinnedKeys,
+                                            busy = state.busyKey?.startsWith(guest.key) == true,
+                                            onLogoClick = { iconPickerGuest = guest },
+                                            onClick = { onOpenGuest(guest) },
+                                            onLongClick = {
+                                                haptics.longPress()
+                                                sheetGuest = guest
+                                            },
+                                            onPower = { action ->
+                                                haptics.tick()
+                                                viewModel.requestPower(guest, action)
+                                            },
+                                            onQuickBackup = {
+                                                haptics.confirm()
+                                                if (!viewModel.quickBackup(guest)) {
+                                                    sheetGuest = guest
+                                                }
+                                            },
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
@@ -315,19 +546,24 @@ fun GuestsScreen(
 
 private fun filterGuests(
     guests: List<GuestItem>,
-    typeFilter: GuestTypeFilter,
+    kindFilter: GuestKindFilter,
+    statusFilter: GuestStatusFilter,
     query: String,
 ): List<GuestItem> {
     val q = query.trim().lowercase()
     return guests.filter { g ->
-        val typeOk = when (typeFilter) {
-            GuestTypeFilter.All -> true
-            GuestTypeFilter.Ct -> g.type == "lxc"
-            GuestTypeFilter.Vm -> g.type == "qemu"
-            GuestTypeFilter.Running -> g.isRunning
-            GuestTypeFilter.Stopped -> !g.isRunning
+        val kindOk = when (kindFilter) {
+            GuestKindFilter.All -> true
+            GuestKindFilter.Ct -> g.type == "lxc"
+            GuestKindFilter.Vm -> g.type == "qemu"
         }
-        if (!typeOk) return@filter false
+        if (!kindOk) return@filter false
+        val statusOk = when (statusFilter) {
+            GuestStatusFilter.All -> true
+            GuestStatusFilter.Running -> g.isRunning
+            GuestStatusFilter.Stopped -> !g.isRunning
+        }
+        if (!statusOk) return@filter false
         if (q.isEmpty()) return@filter true
         g.name.lowercase().contains(q) ||
             g.vmid.toString().contains(q) ||
@@ -342,16 +578,22 @@ private fun filterGuests(
 @Composable
 private fun GuestCard(
     guest: GuestItem,
+    iconRecord: GuestIconRecord?,
     storages: List<String>,
     rates: GuestRates?,
     cpuHistory: List<Float>,
+    pinned: Boolean,
+    lastBackupStorage: String?,
     busy: Boolean,
     pending: PendingPower?,
     backup: GuestJobProgress?,
+    onLogoClick: () -> Unit,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
+    onTogglePin: () -> Unit,
     onPower: (String) -> Unit,
     onBackup: (String) -> Unit,
+    onQuickBackup: () -> Unit,
 ) {
     var backupMenuOpen by remember { mutableStateOf(false) }
     val pendingVisual = pending?.let { pendingLabelForAction(it.action) }
@@ -360,7 +602,22 @@ private fun GuestCard(
     val backingUp = backup?.running == true
     val backupFailed = backup?.failed == true
     val actionsLocked = busy || pending != null || backingUp
-    val topBarColor = when {
+    val loadFactor = remember(guest.cpu, rates) {
+        val cpu = ((guest.cpu ?: 0.0) * 100.0).coerceIn(0.0, 100.0)
+        val net = ((rates?.netin ?: 0.0) + (rates?.netout ?: 0.0))
+        val netScore = (net / (8 * 1024 * 1024)).coerceIn(0.0, 1.0) * 100.0 // ~8 MiB/s = full
+        ((cpu * 0.7) + (netScore * 0.3)).toFloat().coerceIn(0f, 100f)
+    }
+    val glowTarget = when {
+        backupFailed -> ProxBad.copy(alpha = 0.55f)
+        backingUp || transitioning -> MaterialTheme.colorScheme.primary.copy(alpha = 0.45f)
+        loadFactor >= 75f -> ProxBad.copy(alpha = 0.18f + (loadFactor - 75f) / 100f)
+        loadFactor >= 45f -> ProxWarn.copy(alpha = 0.12f + (loadFactor - 45f) / 200f)
+        pinned -> MaterialTheme.colorScheme.primary.copy(alpha = 0.28f)
+        else -> Color.Transparent
+    }
+    val glow by animateColorAsState(glowTarget, tween(420), label = "card-glow")
+    val topBarTarget = when {
         backupFailed -> ProxBad
         backingUp -> MaterialTheme.colorScheme.primary
         visual == "creating" || visual == "starting" || visual == "migrating" ->
@@ -368,8 +625,11 @@ private fun GuestCard(
         visual == "shutting down" || visual == "stopping" || visual == "rebooting" -> ProxWarn
         else -> Color.Transparent
     }
+    val topBarColor by animateColorAsState(topBarTarget, tween(360), label = "top-bar")
+    val canQuickBackup =
+        (lastBackupStorage != null && lastBackupStorage in storages) || storages.size == 1
 
-    ProxCard {
+    ProxCard(borderColor = glow, borderWidth = if (glow.alpha > 0.02f) 1.5.dp else 0.dp) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -408,40 +668,70 @@ private fun GuestCard(
                         pending = pendingVisual,
                     )
                     KindChip(text = guest.kindLabel, kind = guest.type)
-                    if (transitioning && !backingUp) {
-                        TransitionChip(
-                            text = if (visual == "creating") "Setting up…" else visual,
-                            accent = visual == "creating" || visual == "starting" || visual == "migrating",
-                            warn = visual == "shutting down" || visual == "stopping" || visual == "rebooting",
+                    Spacer(Modifier.weight(1f))
+                    IconButton(
+                        onClick = onTogglePin,
+                        modifier = Modifier.size(32.dp),
+                    ) {
+                        Icon(
+                            imageVector = if (pinned) Icons.Filled.PushPin else Icons.Outlined.PushPin,
+                            contentDescription = if (pinned) stringResource(R.string.cd_unpin) else stringResource(R.string.cd_pin),
+                            tint = if (pinned) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(18.dp),
                         )
                     }
-                    if (backingUp) {
-                        TransitionChip(
-                            text = "Backup ${backup?.progress?.let { "${it.toInt()}%" } ?: "…"}",
-                            accent = true,
-                        )
-                    }
-                    if (backupFailed) {
-                        TransitionChip(text = "Backup failed", warn = false, bad = true)
-                    }
+                }
+                if (transitioning && !backingUp) {
+                    Spacer(Modifier.height(ProxSpace.xs))
+                    TransitionChip(
+                        text = if (visual == "creating") stringResource(R.string.guests_transition_setting_up) else visual,
+                        accent = visual == "creating" || visual == "starting" || visual == "migrating",
+                        warn = visual == "shutting down" || visual == "stopping" || visual == "rebooting",
+                    )
+                }
+                if (backingUp) {
+                    Spacer(Modifier.height(ProxSpace.xs))
+                    TransitionChip(
+                        text = "Backup ${backup?.progress?.let { "${it.toInt()}%" } ?: "…"}",
+                        accent = true,
+                    )
+                }
+                if (backupFailed) {
+                    Spacer(Modifier.height(ProxSpace.xs))
+                    TransitionChip(text = stringResource(R.string.backup_failed), warn = false, bad = true)
                 }
 
                 Spacer(Modifier.height(ProxSpace.sm))
-                Text(
-                    text = guest.name,
-                    style = MaterialTheme.typography.titleMedium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    text = "${guest.node} · ${guest.vmid}" +
-                        (guest.ips.firstOrNull()?.let { " · $it" } ?: "") +
-                        if (guest.isRunning) " · ${formatUptime(guest.uptime)}" else "",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(ProxSpace.sm),
+                ) {
+                    GuestLogo(
+                        name = guest.name,
+                        tags = guest.tags,
+                        record = iconRecord,
+                        type = guest.type,
+                        size = 40.dp,
+                        onClick = onLogoClick,
+                    )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = guest.name,
+                            style = MaterialTheme.typography.titleMedium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Text(
+                            text = "${guest.node} · ${guest.vmid}" +
+                                (guest.ips.firstOrNull()?.let { " · $it" } ?: "") +
+                                if (guest.isRunning) " · ${formatUptime(guest.uptime)}" else "",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
 
                 if (backingUp) {
                     Spacer(Modifier.height(ProxSpace.md))
@@ -453,20 +743,20 @@ private fun GuestCard(
                 }
 
                 Spacer(Modifier.height(ProxSpace.lg))
-                MetricBar("CPU", formatPct(guest.cpu), cpuPct(guest.cpu))
+                MetricBar(stringResource(R.string.metric_cpu), formatPct(guest.cpu), cpuPct(guest.cpu))
                 if (cpuHistory.size >= 2) {
                     Spacer(Modifier.height(6.dp))
-                    Sparkline(values = cpuHistory)
+                    CpuSparkline(values = cpuHistory)
                 }
                 Spacer(Modifier.height(ProxSpace.md))
                 MetricBar(
-                    "RAM",
+                    stringResource(R.string.metric_ram),
                     "${formatBytes(guest.mem)} / ${formatBytes(guest.maxmem)}",
                     usagePct(guest.mem, guest.maxmem),
                 )
                 Spacer(Modifier.height(ProxSpace.md))
                 MetricBar(
-                    "Disk",
+                    stringResource(R.string.metric_disk),
                     "${formatBytes(guest.disk)} / ${formatBytes(guest.maxdisk)}",
                     usagePct(guest.disk, guest.maxdisk),
                 )
@@ -517,21 +807,21 @@ private fun GuestCard(
             if (guest.isRunning || pending?.action == "reboot" || visual == "shutting down" || visual == "rebooting") {
                 GuestActionIcon(
                     icon = Icons.Default.PowerSettingsNew,
-                    contentDescription = "Herunterfahren",
+                    contentDescription = stringResource(R.string.power_shutdown),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     enabled = !actionsLocked,
                     onClick = { onPower("shutdown") },
                 )
                 GuestActionIcon(
                     icon = Icons.Default.RestartAlt,
-                    contentDescription = "Neustart",
+                    contentDescription = stringResource(R.string.power_reboot),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     enabled = !actionsLocked,
                     onClick = { onPower("reboot") },
                 )
                 GuestActionIcon(
                     icon = Icons.Default.Stop,
-                    contentDescription = "Force Stop",
+                    contentDescription = stringResource(R.string.power_force_stop),
                     tint = ProxBad,
                     enabled = !actionsLocked,
                     onClick = { onPower("stop") },
@@ -539,7 +829,7 @@ private fun GuestCard(
             } else {
                 GuestActionIcon(
                     icon = Icons.Default.PlayArrow,
-                    contentDescription = "Start",
+                    contentDescription = stringResource(R.string.power_start),
                     tint = ProxGood,
                     enabled = !actionsLocked,
                     onClick = { onPower("start") },
@@ -551,10 +841,12 @@ private fun GuestCard(
             Box {
                 GuestActionIcon(
                     icon = Icons.Default.CloudUpload,
-                    contentDescription = "Backup",
+                    contentDescription = stringResource(R.string.power_backup),
                     tint = MaterialTheme.colorScheme.primary,
                     enabled = !actionsLocked && storages.isNotEmpty(),
-                    onClick = { backupMenuOpen = true },
+                    onClick = {
+                        if (canQuickBackup) onQuickBackup() else backupMenuOpen = true
+                    },
                     loading = backingUp,
                     progressLabel = backup?.progress?.let { "${it.toInt()}%" },
                 )
@@ -563,8 +855,11 @@ private fun GuestCard(
                     onDismissRequest = { backupMenuOpen = false },
                 ) {
                     storages.forEach { storage ->
+                        val preferred = storage == lastBackupStorage
                         DropdownMenuItem(
-                            text = { Text(storage) },
+                            text = {
+                                Text(if (preferred) "$storage  ★" else storage)
+                            },
                             onClick = {
                                 backupMenuOpen = false
                                 onBackup(storage)
@@ -573,6 +868,491 @@ private fun GuestCard(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun AppearanceDialog(
+    viewMode: NodesViewMode,
+    onViewMode: (NodesViewMode) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val options = listOf(
+        ViewModeOption(
+            mode = NodesViewMode.Cards,
+            title = stringResource(R.string.view_mode_cards_title),
+            hint = stringResource(R.string.view_mode_cards_hint),
+            icon = Icons.Default.ViewAgenda,
+        ),
+        ViewModeOption(
+            mode = NodesViewMode.Grid,
+            title = stringResource(R.string.view_mode_grid_title),
+            hint = stringResource(R.string.view_mode_grid_hint),
+            icon = Icons.Default.GridView,
+        ),
+        ViewModeOption(
+            mode = NodesViewMode.Compact,
+            title = stringResource(R.string.view_mode_list_title),
+            hint = stringResource(R.string.view_mode_list_hint),
+            icon = Icons.AutoMirrored.Filled.ViewList,
+        ),
+    )
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = ProxSpace.screen),
+            shape = MaterialTheme.shapes.extraLarge,
+            color = MaterialTheme.colorScheme.surfaceContainer,
+            tonalElevation = 2.dp,
+            shadowElevation = 12.dp,
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(ProxSpace.lg),
+            ) {
+                Text(
+                    text = stringResource(R.string.appearance_title),
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    text = stringResource(R.string.appearance_subtitle),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(ProxSpace.lg))
+                Column(verticalArrangement = Arrangement.spacedBy(ProxSpace.sm)) {
+                    options.forEach { option ->
+                        ViewModeOptionCard(
+                            option = option,
+                            selected = viewMode == option.mode,
+                            onClick = { onViewMode(option.mode) },
+                        )
+                    }
+                }
+                Spacer(Modifier.height(ProxSpace.lg))
+                Button(
+                    onClick = onDismiss,
+                    shape = MaterialTheme.shapes.small,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp),
+                ) {
+                    Text(stringResource(R.string.action_apply))
+                }
+            }
+        }
+    }
+}
+
+private data class ViewModeOption(
+    val mode: NodesViewMode,
+    val title: String,
+    val hint: String,
+    val icon: ImageVector,
+)
+
+@Composable
+private fun ViewModeOptionCard(
+    option: ViewModeOption,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    val border by animateColorAsState(
+        if (selected) MaterialTheme.colorScheme.primary
+        else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f),
+        label = "view-border",
+    )
+    val bg by animateColorAsState(
+        if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+        else MaterialTheme.colorScheme.surfaceContainerHigh,
+        label = "view-bg",
+    )
+    val scale by animateFloatAsState(
+        if (selected) 1.015f else 1f,
+        animationSpec = spring(stiffness = Spring.StiffnessMedium),
+        label = "view-scale",
+    )
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .scale(scale)
+            .clip(MaterialTheme.shapes.medium)
+            .background(bg)
+            .border(1.5.dp, border, MaterialTheme.shapes.medium)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        ViewModePreview(mode = option.mode, selected = selected)
+        Spacer(Modifier.width(ProxSpace.md))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = option.title,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                text = option.hint,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        Spacer(Modifier.width(ProxSpace.sm))
+        if (selected) {
+            Icon(
+                Icons.Default.CheckCircle,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(22.dp),
+            )
+        } else {
+            Box(
+                modifier = Modifier
+                    .size(22.dp)
+                    .border(1.5.dp, MaterialTheme.colorScheme.outlineVariant, CircleShape),
+            )
+        }
+    }
+}
+
+@Composable
+private fun ViewModePreview(mode: NodesViewMode, selected: Boolean) {
+    val accent = if (selected) {
+        MaterialTheme.colorScheme.primary
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f)
+    }
+    val fill = if (selected) {
+        MaterialTheme.colorScheme.primary.copy(alpha = 0.28f)
+    } else {
+        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.10f)
+    }
+
+    Box(
+        modifier = Modifier
+            .size(56.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(
+                Brush.verticalGradient(
+                    listOf(
+                        fill,
+                        MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.7f),
+                    ),
+                ),
+            )
+            .padding(8.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        when (mode) {
+            NodesViewMode.Cards -> {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(14.dp)
+                            .clip(RoundedCornerShape(5.dp))
+                            .background(accent.copy(alpha = 0.55f)),
+                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(0.72f)
+                            .height(6.dp)
+                            .clip(RoundedCornerShape(3.dp))
+                            .background(accent.copy(alpha = 0.35f)),
+                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(6.dp)
+                            .clip(RoundedCornerShape(3.dp))
+                            .background(accent.copy(alpha = 0.22f)),
+                    )
+                }
+            }
+            NodesViewMode.Grid -> {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        repeat(2) {
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(16.dp)
+                                    .clip(RoundedCornerShape(5.dp))
+                                    .background(accent.copy(alpha = 0.45f)),
+                            )
+                        }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        repeat(2) {
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(16.dp)
+                                    .clip(RoundedCornerShape(5.dp))
+                                    .background(accent.copy(alpha = 0.25f)),
+                            )
+                        }
+                    }
+                }
+            }
+            NodesViewMode.Compact -> {
+                Column(verticalArrangement = Arrangement.spacedBy(5.dp), modifier = Modifier.fillMaxWidth()) {
+                    repeat(3) { i ->
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth(1f - i * 0.08f)
+                                .height(7.dp)
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(accent.copy(alpha = 0.5f - i * 0.12f)),
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+@Composable
+private fun GuestTile(
+    guest: GuestItem,
+    iconRecord: GuestIconRecord?,
+    pending: PendingPower?,
+    backup: GuestJobProgress?,
+    pinned: Boolean,
+    busy: Boolean,
+    onLogoClick: () -> Unit,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+    onPower: (String) -> Unit,
+    onQuickBackup: () -> Unit,
+) {
+    val pendingVisual = pending?.let { pendingLabelForAction(it.action) }
+    val visual = guestVisualStatus(guest.status, guest.qmpstatus, guest.lock, pendingVisual)
+    val transitioning = isTransitioningStatus(visual)
+    val backingUp = backup?.running == true
+    val locked = busy || pending != null || backingUp
+
+    ProxCard(
+        borderColor = when {
+            backingUp -> MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
+            transitioning -> ProxWarn.copy(alpha = 0.35f)
+            pinned -> MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)
+            else -> Color.Transparent
+        },
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .combinedClickable(onClick = onClick, onLongClick = onLongClick),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                StatusBadge(
+                    status = guest.status,
+                    qmpstatus = guest.qmpstatus,
+                    lock = guest.lock,
+                    pending = pendingVisual,
+                )
+                Spacer(Modifier.weight(1f))
+                KindChip(text = guest.kindLabel, kind = guest.type)
+            }
+            Spacer(Modifier.height(ProxSpace.sm))
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(ProxSpace.xs),
+            ) {
+                GuestLogo(
+                    name = guest.name,
+                    tags = guest.tags,
+                    record = iconRecord,
+                    type = guest.type,
+                    size = 32.dp,
+                    onClick = onLogoClick,
+                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = guest.name,
+                        style = MaterialTheme.typography.titleSmall,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = "${guest.vmid} · ${guest.node}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+            if (backingUp) {
+                Spacer(Modifier.height(ProxSpace.xs))
+                Text(
+                    text = "Backup ${backup?.progress?.let { "${it.toInt()}%" } ?: "…"}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
+            Spacer(Modifier.height(ProxSpace.sm))
+            MetricBar(stringResource(R.string.metric_cpu), formatPct(guest.cpu), cpuPct(guest.cpu))
+            Spacer(Modifier.height(ProxSpace.sm))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                if (guest.isRunning || pending?.action == "reboot") {
+                    GuestActionIcon(
+                        icon = Icons.Default.RestartAlt,
+                        contentDescription = stringResource(R.string.power_reboot),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        enabled = !locked,
+                        onClick = { onPower("reboot") },
+                    )
+                    GuestActionIcon(
+                        icon = Icons.Default.PowerSettingsNew,
+                        contentDescription = "Shutdown",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        enabled = !locked,
+                        onClick = { onPower("shutdown") },
+                    )
+                } else {
+                    GuestActionIcon(
+                        icon = Icons.Default.PlayArrow,
+                        contentDescription = stringResource(R.string.power_start),
+                        tint = ProxGood,
+                        enabled = !locked,
+                        onClick = { onPower("start") },
+                    )
+                }
+                GuestActionIcon(
+                    icon = Icons.Default.CloudUpload,
+                    contentDescription = stringResource(R.string.power_backup),
+                    tint = MaterialTheme.colorScheme.primary,
+                    enabled = !locked,
+                    onClick = onQuickBackup,
+                    loading = backingUp,
+                )
+            }
+        }
+    }
+}
+
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+@Composable
+private fun GuestCompactRow(
+    guest: GuestItem,
+    iconRecord: GuestIconRecord?,
+    pending: PendingPower?,
+    backup: GuestJobProgress?,
+    pinned: Boolean,
+    busy: Boolean,
+    onLogoClick: () -> Unit,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+    onPower: (String) -> Unit,
+    onQuickBackup: () -> Unit,
+) {
+    val pendingVisual = pending?.let { pendingLabelForAction(it.action) }
+    val visual = guestVisualStatus(guest.status, guest.qmpstatus, guest.lock, pendingVisual)
+    val backingUp = backup?.running == true
+    val locked = busy || pending != null || backingUp
+
+    ProxCard(
+        borderColor = if (pinned) MaterialTheme.colorScheme.primary.copy(alpha = 0.3f) else Color.Transparent,
+        borderWidth = 1.dp,
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .combinedClickable(onClick = onClick, onLongClick = onLongClick),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            GuestLogo(
+                name = guest.name,
+                tags = guest.tags,
+                record = iconRecord,
+                type = guest.type,
+                size = 36.dp,
+                onClick = onLogoClick,
+            )
+            Spacer(Modifier.width(ProxSpace.xs))
+            StatusBadge(
+                status = guest.status,
+                qmpstatus = guest.qmpstatus,
+                lock = guest.lock,
+                pending = pendingVisual,
+            )
+            Spacer(Modifier.width(ProxSpace.sm))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = guest.name,
+                    style = MaterialTheme.typography.titleSmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = buildString {
+                        append(guest.kindLabel)
+                        append(' ')
+                        append(guest.vmid)
+                        append(" · ")
+                        append(guest.node)
+                        if (backingUp) {
+                            append(" · Backup ")
+                            append(backup?.progress?.let { "${it.toInt()}%" } ?: "…")
+                        } else if (guest.isRunning) {
+                            append(" · CPU ")
+                            append(formatPct(guest.cpu))
+                        }
+                    },
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            if (guest.isRunning || pending?.action == "reboot") {
+                GuestActionIcon(
+                    icon = Icons.Default.RestartAlt,
+                    contentDescription = stringResource(R.string.power_reboot),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    enabled = !locked,
+                    onClick = { onPower("reboot") },
+                )
+            } else {
+                GuestActionIcon(
+                    icon = Icons.Default.PlayArrow,
+                    contentDescription = stringResource(R.string.power_start),
+                    tint = ProxGood,
+                    enabled = !locked,
+                    onClick = { onPower("start") },
+                )
+            }
+            GuestActionIcon(
+                icon = Icons.Default.CloudUpload,
+                contentDescription = stringResource(R.string.power_backup),
+                tint = MaterialTheme.colorScheme.primary,
+                enabled = !locked,
+                onClick = onQuickBackup,
+                loading = backingUp,
+            )
         }
     }
 }

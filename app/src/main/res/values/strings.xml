@@ -1,4 +1,362 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">ProxPanel</string>
+
+    <!-- Common actions -->
+    <string name="action_cancel">Cancel</string>
+    <string name="action_close">Close</string>
+    <string name="action_apply">Apply</string>
+    <string name="action_save">Save</string>
+    <string name="action_delete">Delete</string>
+    <string name="action_restore">Restore</string>
+    <string name="action_refresh">Refresh</string>
+    <string name="action_back">Back</string>
+    <string name="action_clear">Clear</string>
+    <string name="action_copy">Copy</string>
+    <string name="action_open">Open</string>
+    <string name="action_dismiss">Dismiss</string>
+    <string name="action_rollback">Rollback</string>
+    <string name="loading_default">Loading…</string>
+    <string name="empty_no_results">No results</string>
+    <string name="empty_dash">—</string>
+    <string name="show_all">Show all</string>
+    <string name="pull_to_refresh_hint">Pull to refresh or check your connection</string>
+    <string name="adjust_filters_hint">Adjust filters or search</string>
+
+    <!-- Power / backup -->
+    <string name="power_start">Start</string>
+    <string name="power_shutdown">Shut down</string>
+    <string name="power_reboot">Restart</string>
+    <string name="power_force_stop">Force stop</string>
+    <string name="power_backup">Backup</string>
+    <string name="backup_now">Back up now</string>
+    <string name="backup_running">Backup running…</string>
+    <string name="backup_starting">Starting backup…</string>
+    <string name="backup_in_progress">Backup in progress</string>
+    <string name="backup_failed">Backup failed</string>
+    <string name="backup_progress">Backup %1$s</string>
+    <string name="starting_ellipsis">Starting…</string>
+    <string name="backing_up_ellipsis">Backing up…</string>
+    <string name="running_ellipsis">Running…</string>
+
+    <!-- Status filters (product terms often kept EN) -->
+    <string name="status_running">Running</string>
+    <string name="status_stopped">Stopped</string>
+    <string name="metric_cpu">CPU</string>
+    <string name="cpu_spark_range">Range %1$d–%2$d%%</string>
+    <string name="metric_ram">RAM</string>
+    <string name="metric_disk">Disk</string>
+    <string name="metric_used">Used</string>
+    <string name="uptime_prefix">Up %1$s</string>
+
+    <!-- Content descriptions -->
+    <string name="cd_create_vm_ct">Create VM / CT</string>
+    <string name="cd_logout">Log out</string>
+    <string name="cd_view_options">View options</string>
+    <string name="cd_pin">Pin</string>
+    <string name="cd_unpin">Unpin</string>
+    <string name="cd_console">Console</string>
+    <string name="cd_clear_search">Clear search</string>
+
+    <!-- Nav -->
+    <string name="nav_overview">Overview</string>
+    <string name="nav_backups">Backups</string>
+    <string name="nav_storage">Storage</string>
+    <string name="nav_tasks">Tasks</string>
+    <string name="nav_media">Media</string>
+    <string name="nav_apps">Apps</string>
+    <string name="nav_settings">Settings</string>
+
+    <!-- Login -->
+    <string name="login_checking_session">Checking session…</string>
+    <string name="login_tagline">Proxmox VE · mobile</string>
+    <string name="login_field_server">Proxmox server</string>
+    <string name="login_placeholder_host">192.168.1.10</string>
+    <string name="login_field_username">Username</string>
+    <string name="login_placeholder_user">root</string>
+    <string name="login_field_password">Password</string>
+    <string name="login_field_realm">Realm</string>
+    <string name="login_remember_credentials">Save login credentials</string>
+    <string name="login_verify_tls">Verify TLS certificate</string>
+    <string name="login_sign_in">Sign in</string>
+    <string name="login_footer">Direct sign-in to the Proxmox VE API (port 8006).</string>
+    <string name="login_error_required">Proxmox server, username, and password are required.</string>
+    <string name="login_error_sign_in_failed">Sign-in failed</string>
+
+    <!-- Guests / Overview -->
+    <string name="guests_title">Overview</string>
+    <string name="guests_search_placeholder">Name, VMID, IP, node…</string>
+    <string name="guests_loading">Loading entries…</string>
+    <string name="guests_count">%1$d entries</string>
+    <string name="guests_count_filtered">%1$d of %2$d</string>
+    <string name="guests_empty_none">No entries</string>
+    <string name="guests_empty_running">No running entries</string>
+    <string name="guests_empty_stopped">No stopped entries</string>
+    <string name="guests_empty_vms">No VMs</string>
+    <string name="guests_empty_cts">No CTs</string>
+    <string name="guests_transition_setting_up">Setting up…</string>
+    <string name="appearance_title">Entry layout</string>
+    <string name="appearance_subtitle">Choose how entries are displayed</string>
+    <string name="view_mode_cards_title">Cards</string>
+    <string name="view_mode_cards_hint">Full details, metrics &amp; actions</string>
+    <string name="view_mode_grid_title">Tiles</string>
+    <string name="view_mode_grid_hint">Two columns, compact</string>
+    <string name="view_mode_list_title">List</string>
+    <string name="view_mode_list_hint">Single row with key actions</string>
+
+    <!-- Quick sheet -->
+    <string name="quick_backup_ellipsis">Backup…</string>
+    <string name="quick_backup_to_storage">Backup → %1$s</string>
+    <string name="quick_open_details">Open full details</string>
+
+    <!-- Power confirms -->
+    <string name="confirm_shutdown_title">Shut down?</string>
+    <string name="confirm_shutdown_body">“%1$s” will shut down gracefully. Unsaved data may be lost.</string>
+    <string name="confirm_shutdown_confirm">Shut down</string>
+    <string name="confirm_force_stop_title">Force stop?</string>
+    <string name="confirm_force_stop_body">“%1$s” will be stopped immediately (like pulling power). Data loss possible.</string>
+    <string name="confirm_force_stop_confirm">Stop</string>
+    <string name="confirm_reboot_title">Restart?</string>
+    <string name="confirm_reboot_body">“%1$s” will restart. Services will be briefly interrupted.</string>
+    <string name="confirm_reboot_confirm">Restart</string>
+
+    <!-- Toasts / errors -->
+    <string name="toast_power_start">%1$s: Start initiated</string>
+    <string name="toast_power_shutdown">%1$s: Shutdown initiated</string>
+    <string name="toast_power_reboot">%1$s: Restart initiated</string>
+    <string name="toast_power_stop">%1$s: Stop initiated</string>
+    <string name="toast_backup_started">Backup started</string>
+    <string name="toast_backup_started_for">Backup started for %1$s</string>
+    <string name="toast_backup_finished">Backup finished</string>
+    <string name="toast_backup_deleted">Backup deleted</string>
+    <string name="toast_restore_started">Restore started</string>
+    <string name="toast_restore_started_vmid">Restore started → VMID %1$d</string>
+    <string name="toast_snapshot_created">Snapshot created</string>
+    <string name="toast_snapshot_deleted">Snapshot deleted</string>
+    <string name="toast_rollback_started">Rollback started</string>
+    <string name="toast_resources_saved">Resources saved</string>
+    <string name="toast_action_requested">%1$s requested</string>
+    <string name="toast_create_started">%1$s %2$d is being created</string>
+    <string name="error_action_failed">Action failed</string>
+    <string name="error_backup_failed">Backup failed</string>
+    <string name="error_load_failed">Failed to load</string>
+    <string name="error_load_guest_failed">Failed to load guest</string>
+    <string name="error_failed">Failed</string>
+    <string name="error_restore_failed">Restore failed</string>
+    <string name="error_delete_failed">Delete failed</string>
+    <string name="error_snapshot_name_required">Snapshot name required</string>
+    <string name="error_create_failed">Create failed</string>
+    <string name="error_select_node">Select a node</string>
+    <string name="error_vmid_min">VMID must be at least 100</string>
+    <string name="error_name_required">Name required</string>
+    <string name="error_select_disk_storage">Select disk storage</string>
+    <string name="error_check_resources">Check resources</string>
+    <string name="error_select_os_template">Select OS template</string>
+    <string name="error_password_min">Password at least 5 characters</string>
+    <string name="error_marketplace_load">Failed to load marketplace</string>
+    <string name="error_no_task_id">No task ID from Proxmox</string>
+
+    <!-- Guest detail -->
+    <string name="tab_overview">Overview</string>
+    <string name="tab_snapshots">Snapshots</string>
+    <string name="tab_backups">Backups</string>
+    <string name="tab_resources">Resources</string>
+    <string name="section_resources">Resources</string>
+    <string name="section_network">Network</string>
+    <string name="section_actions">Actions</string>
+    <string name="no_ip_detected">No IP detected</string>
+    <string name="snapshot_new_section">New snapshot</string>
+    <string name="snapshot_name_placeholder">snap-name</string>
+    <string name="snapshot_create">Create snapshot</string>
+    <string name="snapshot_existing_section">Existing</string>
+    <string name="snapshot_empty">No snapshots</string>
+    <string name="backup_start_section">Start backup</string>
+    <string name="backup_start_button">Start backup</string>
+    <string name="backup_existing_count">Existing · %1$d</string>
+    <string name="backup_empty">No backups</string>
+    <string name="backup_meta_when">When</string>
+    <string name="backup_meta_size">Size</string>
+    <string name="backup_meta_format">Format</string>
+    <string name="backup_meta_location">Location</string>
+    <string name="section_cpu_memory">CPU / memory</string>
+    <string name="field_cores">Cores</string>
+    <string name="field_memory_mib">Memory (MiB)</string>
+    <string name="field_swap_mib">Swap (MiB)</string>
+    <string name="force_overwrite">Force overwrite</string>
+    <string name="target_vmid">Target VMID</string>
+    <string name="storage_optional">Storage (optional)</string>
+    <string name="storage_label">Storage</string>
+    <string name="storage_pick">Choose storage</string>
+    <string name="storage_none">No storage</string>
+    <string name="backup_mode_label">Mode</string>
+    <string name="backup_compress_label">Compress</string>
+    <string name="no_options">No options</string>
+    <string name="confirm_backup_delete_title">Delete backup?</string>
+    <string name="confirm_backup_delete_body">Permanently delete “%1$s”?</string>
+    <string name="confirm_restore_title">Restore backup?</string>
+
+    <!-- Create -->
+    <string name="create_title_lxc">New container</string>
+    <string name="create_title_vm">New VM</string>
+    <string name="create_subtitle">Like ProxPanel Web — essentials only</string>
+    <string name="create_loading_cluster">Loading cluster…</string>
+    <string name="create_type_container">Container</string>
+    <string name="create_section_placement">Placement</string>
+    <string name="create_field_node">Node</string>
+    <string name="create_field_hostname">Hostname</string>
+    <string name="create_field_name">Name</string>
+    <string name="create_placeholder_lxc">nextcloud</string>
+    <string name="create_placeholder_vm">ubuntu-desktop</string>
+    <string name="create_section_template_disk">Template &amp; disk</string>
+    <string name="create_section_disk_iso">Disk &amp; install ISO</string>
+    <string name="create_field_os_template">OS template</string>
+    <string name="create_no_templates_hint">No templates — download one under Media.</string>
+    <string name="create_field_iso_optional">Install ISO (optional)</string>
+    <string name="create_iso_later">— attach later —</string>
+    <string name="create_field_disk_storage">Disk storage</string>
+    <string name="create_field_disk_gib">Disk (GiB)</string>
+    <string name="create_section_access">Access</string>
+    <string name="create_field_root_password">Root password</string>
+    <string name="create_show_password">Show</string>
+    <string name="create_hide_password">Hide</string>
+    <string name="create_generate_password">Generate</string>
+    <string name="create_start_after">Start after create</string>
+    <string name="create_hide_advanced">Hide advanced</string>
+    <string name="create_show_advanced">Advanced options</string>
+    <string name="create_section_resources">Resources</string>
+    <string name="create_field_cpu_cores">CPU cores</string>
+    <string name="create_section_network">Network</string>
+    <string name="create_field_bridge">Bridge</string>
+    <string name="create_ip_dhcp">IP: DHCP</string>
+    <string name="create_unprivileged_recommended">Unprivileged (recommended)</string>
+    <string name="create_busy">Creating…</string>
+    <string name="create_button_lxc">Create container</string>
+    <string name="create_button_vm">Create VM</string>
+
+    <!-- Backups tab -->
+    <string name="backups_title">Backups</string>
+    <string name="backups_subtitle">%1$d of %2$d with backup</string>
+    <string name="backups_search_placeholder">Name, VMID, node, format…</string>
+    <string name="backups_loading">Loading backups…</string>
+    <string name="backups_card_backups_count">%1$s · %2$s %3$d · %4$d backups</string>
+    <string name="backups_last_backup">Last backup</string>
+    <string name="backups_file">File</string>
+    <string name="backups_details_title">Backup details</string>
+    <string name="backups_none_yet">No backup yet.</string>
+    <string name="backups_all_count">All backups (%1$d)</string>
+    <string name="backups_history_empty">No entries.</string>
+    <string name="backups_volume">Volume</string>
+    <string name="backups_notes">Notes</string>
+    <string name="backups_create_title">Create backup</string>
+    <string name="backups_start_button">Start</string>
+
+    <!-- Storage -->
+    <string name="storage_title">Storage</string>
+    <string name="storage_subtitle">Nodes &amp; storage</string>
+    <string name="storage_search_placeholder">Node, storage, type…</string>
+    <string name="storage_empty_data">No data</string>
+    <string name="storage_section_nodes">Nodes</string>
+    <string name="storage_chip_node">Node</string>
+    <string name="storage_node_status_uptime">%1$s · Up %2$s</string>
+    <string name="storage_section_storage">Storage</string>
+
+    <!-- Tasks -->
+    <string name="tasks_title">Tasks</string>
+    <string name="tasks_subtitle_entries">%1$d entries</string>
+    <string name="tasks_subtitle_filtered">%1$d / %2$d entries</string>
+    <string name="tasks_subtitle_running">· %1$d running</string>
+    <string name="tasks_search_placeholder">Task, guest, node, user…</string>
+    <string name="tasks_loading">Loading tasks…</string>
+    <string name="tasks_empty">No tasks</string>
+    <string name="tasks_empty_subtitle">Cluster tasks appear here</string>
+    <string name="tasks_log_loading">Loading details…</string>
+    <string name="tasks_log_empty">No further details.</string>
+    <string name="task_outcome_running">Running</string>
+    <string name="task_outcome_failed">Failed</string>
+    <string name="task_outcome_done">Done</string>
+    <string name="task_duration_so_far">%1$s so far</string>
+
+    <!-- Marketplace -->
+    <string name="apps_title">Apps</string>
+    <string name="apps_subtitle">Community Scripts</string>
+    <string name="apps_search_placeholder">Search scripts…</string>
+    <string name="apps_install_hint">Run the install command on the Proxmox host.</string>
+    <string name="apps_loading_catalog">Loading catalog…</string>
+    <string name="apps_empty">No scripts</string>
+    <string name="apps_snackbar_copied">Command copied</string>
+
+    <!-- Media -->
+    <string name="media_title">Media</string>
+    <string name="media_subtitle">ISOs &amp; templates</string>
+    <string name="media_search_placeholder">Name, storage, node…</string>
+    <string name="media_tab_isos">ISOs</string>
+    <string name="media_tab_templates">Templates</string>
+    <string name="media_empty">No media</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_subtitle">App, sync &amp; appearance</string>
+    <string name="settings_refresh_title">Refresh</string>
+    <string name="settings_refresh_subtitle">How often entries reload live</string>
+    <string name="settings_accent_title">Accent color</string>
+    <string name="settings_accent_subtitle">Primary color for the app</string>
+    <string name="settings_app_info_title">App info</string>
+    <string name="settings_app_info_subtitle">Version &amp; legal</string>
+    <string name="settings_info_app">App</string>
+    <string name="settings_info_version">Version</string>
+    <string name="settings_info_build">Build</string>
+    <string name="settings_privacy_title">Privacy</string>
+    <string name="accent_orange">Orange</string>
+    <string name="accent_blue">Blue</string>
+    <string name="accent_teal">Teal</string>
+    <string name="accent_magenta">Magenta</string>
+    <string name="refresh_interval_fast_label">2 sec</string>
+    <string name="refresh_interval_fast_hint">Very live, more load</string>
+    <string name="refresh_interval_default_label">3 sec</string>
+    <string name="refresh_interval_default_hint">Balanced</string>
+    <string name="refresh_interval_relaxed_label">5 sec</string>
+    <string name="refresh_interval_relaxed_hint">Relaxed</string>
+    <string name="refresh_interval_calm_label">10 sec</string>
+    <string name="refresh_interval_calm_hint">Gentle</string>
+    <string name="refresh_interval_slow_label">30 sec</string>
+    <string name="refresh_interval_slow_hint">Battery-friendly</string>
+    <string name="refresh_interval_manual_label">Manual</string>
+    <string name="refresh_interval_manual_hint">Pull to refresh only</string>
+    <string name="privacy_body">ProxPanel stores login credentials and settings only locally on this device (encrypted or in app preferences).\n\nThe app connects directly to your Proxmox server. No server data is sent to us or to third parties.\n\nOptionally, marketplace scripts are loaded from public sources. That creates a network connection to the respective catalog host.\n\nYou can uninstall the app at any time to remove all local data.</string>
+
+    <!-- Cluster bar -->
+    <string name="cluster_nodes">Nodes</string>
+    <string name="cluster_running">Running</string>
+    <string name="cluster_free">Free</string>
+
+    <!-- Jobs -->
+    <string name="jobs_open_tasks">Open Tasks</string>
+    <string name="jobs_active_one">1 active job</string>
+    <string name="jobs_active_many">%1$d active jobs</string>
+    <string name="jobs_failed_one">1 job failed</string>
+    <string name="jobs_failed_many">%1$d jobs failed</string>
+    <string name="jobs_finished_one">1 job finished</string>
+    <string name="jobs_finished_many">%1$d jobs finished</string>
+    <string name="jobs_more">· +%1$d more</string>
+    <string name="job_eta_left">~%1$s left</string>
+    <string name="job_meta_in_progress">In progress · %1$s</string>
+    <string name="job_meta_starting">Starting… · %1$s</string>
+    <string name="job_meta_failed_after">Failed after %1$s</string>
+    <string name="job_meta_done_in">Done in %1$s</string>
+    <string name="job_kind_finished">%1$s finished</string>
+    <string name="job_kind_failed">%1$s failed</string>
+    <string name="guest_fallback_name">Guest %1$d</string>
+
+    <!-- Guest icons -->
+    <string name="guest_icon_title">Guest logo</string>
+    <string name="guest_icon_auto">Auto</string>
+    <string name="guest_icon_catalog">Catalog</string>
+    <string name="guest_icon_upload">Upload</string>
+    <string name="guest_icon_none">None</string>
+    <string name="guest_icon_search">Search icons…</string>
+    <string name="guest_icon_detected">Detected: %1$s</string>
+    <string name="guest_icon_suggestions">Suggestions</string>
+    <string name="guest_icon_done">Done</string>
+    <string name="guest_icon_hint">Tap a mode, then save.</string>
+    <string name="guest_icon_change">Change logo</string>
 </resources>

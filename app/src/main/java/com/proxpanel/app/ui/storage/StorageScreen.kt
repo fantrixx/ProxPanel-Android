@@ -27,6 +27,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.res.stringResource
+import com.proxpanel.app.R
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.proxpanel.app.ui.components.KindChip
@@ -74,11 +76,12 @@ fun StorageScreen(viewModel: StorageViewModel) {
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             ProxTopBar(
-                title = "Storage",
-                subtitle = "Nodes & Speicher",
+                title = stringResource(R.string.storage_title),
+                subtitle = stringResource(R.string.storage_subtitle),
+                embeddedInShell = true,
                 actions = {
                     IconButton(onClick = { viewModel.refresh() }) {
-                        Icon(Icons.Default.Refresh, contentDescription = "Refresh")
+                        Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.action_refresh))
                     }
                 },
             )
@@ -92,7 +95,7 @@ fun StorageScreen(viewModel: StorageViewModel) {
             ProxSearchBar(
                 value = query,
                 onValueChange = { query = it },
-                placeholder = "Node, Storage, Typ…",
+                placeholder = stringResource(R.string.storage_search_placeholder),
             )
             Spacer(Modifier.height(ProxSpace.sm))
             PullToRefreshBox(
@@ -104,7 +107,7 @@ fun StorageScreen(viewModel: StorageViewModel) {
                     state.loading -> ProxLoadingState()
                     nodes.isEmpty() && storages.isEmpty() -> ProxEmptyState(
                         title = state.error
-                            ?: if (q.isNotEmpty()) "Keine Treffer" else "Keine Daten",
+                            ?: if (q.isNotEmpty()) stringResource(R.string.empty_no_results) else stringResource(R.string.storage_empty_data),
                         icon = Icons.Outlined.Storage,
                     )
                     else -> {
@@ -118,7 +121,7 @@ fun StorageScreen(viewModel: StorageViewModel) {
                                 }
                             }
                             if (nodes.isNotEmpty()) {
-                                item { SectionLabel("Nodes") }
+                                item { SectionLabel(stringResource(R.string.storage_section_nodes)) }
                                 items(nodes, key = { it.id }) { node ->
                                     val online = node.status.equals("online", ignoreCase = true)
                                     ProxCard {
@@ -130,19 +133,19 @@ fun StorageScreen(viewModel: StorageViewModel) {
                                                 style = MaterialTheme.typography.titleMedium,
                                                 modifier = Modifier.weight(1f),
                                             )
-                                            KindChip(text = "Node", kind = "node")
+                                            KindChip(text = stringResource(R.string.storage_chip_node), kind = "node")
                                         }
                                         Spacer(Modifier.height(ProxSpace.xs))
                                         Text(
-                                            "${node.status ?: "unknown"} · Up ${formatUptime(node.uptime)}",
+                                            "${node.status ?: "unknown"} · ${stringResource(R.string.uptime_prefix, formatUptime(node.uptime))}",
                                             style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         )
                                         Spacer(Modifier.height(ProxSpace.md))
-                                        MetricBar("CPU", formatPct(node.cpu), cpuPct(node.cpu))
+                                        MetricBar(stringResource(R.string.metric_cpu), formatPct(node.cpu), cpuPct(node.cpu))
                                         Spacer(Modifier.height(ProxSpace.sm))
                                         MetricBar(
-                                            "RAM",
+                                            stringResource(R.string.metric_ram),
                                             "${formatBytes(node.mem)} / ${formatBytes(node.maxmem)}",
                                             usagePct(node.mem, node.maxmem),
                                         )
@@ -152,7 +155,7 @@ fun StorageScreen(viewModel: StorageViewModel) {
                             if (storages.isNotEmpty()) {
                                 item {
                                     Spacer(Modifier.height(ProxSpace.sm))
-                                    SectionLabel("Storage")
+                                    SectionLabel(stringResource(R.string.storage_section_storage))
                                 }
                                 items(storages, key = { it.id }) { store ->
                                     ProxCard {
@@ -176,7 +179,7 @@ fun StorageScreen(viewModel: StorageViewModel) {
                                         )
                                         Spacer(Modifier.height(ProxSpace.md))
                                         MetricBar(
-                                            "Used",
+                                            stringResource(R.string.metric_used),
                                             "${formatBytes(store.disk)} / ${formatBytes(store.maxdisk)}",
                                             usagePct(store.disk, store.maxdisk),
                                         )

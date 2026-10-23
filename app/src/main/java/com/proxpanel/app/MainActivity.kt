@@ -11,14 +11,17 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.proxpanel.app.data.AccentChoice
 import com.proxpanel.app.data.GuestItem
 import com.proxpanel.app.ui.create.CreateGuestScreen
 import com.proxpanel.app.ui.create.CreateGuestType
@@ -28,6 +31,7 @@ import com.proxpanel.app.ui.detail.GuestDetailViewModel
 import com.proxpanel.app.ui.login.LoginScreen
 import com.proxpanel.app.ui.login.LoginViewModel
 import com.proxpanel.app.ui.shell.HomeShell
+import com.proxpanel.app.R
 import com.proxpanel.app.ui.theme.ProxPanelTheme
 import java.net.URLDecoder
 import java.net.URLEncoder
@@ -45,7 +49,10 @@ class MainActivity : ComponentActivity() {
         }
         val app = application as ProxPanelApp
         setContent {
-            ProxPanelTheme(darkTheme = true) {
+            val accent by app.container.prefsStore.accentChoice.collectAsStateWithLifecycle(
+                initialValue = AccentChoice.Orange,
+            )
+            ProxPanelTheme(accent = accent) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background,
@@ -68,6 +75,7 @@ private fun ProxPanelNav(container: AppContainer) {
                     container.api,
                     container.sessionStore,
                     container.credentialStore,
+                    container.l10n,
                 ),
             )
             LoginScreen(
@@ -99,7 +107,7 @@ private fun ProxPanelNav(container: AppContainer) {
 
         composable("create") {
             val vm: CreateGuestViewModel = viewModel(
-                factory = CreateGuestViewModel.factory(container.api, CreateGuestType.Lxc),
+                factory = CreateGuestViewModel.factory(container.api, container.l10n, CreateGuestType.Lxc),
             )
             CreateGuestScreen(
                 viewModel = vm,
@@ -112,7 +120,7 @@ private fun ProxPanelNav(container: AppContainer) {
                         upid = result.upid,
                     )
                     nav.navigate(
-                        "guest/${result.type}/${enc(result.node)}/${result.vmid}/${enc("Guest ${result.vmid}")}/creating",
+                        "guest/${result.type}/${enc(result.node)}/${result.vmid}/${enc(container.l10n.get(R.string.guest_fallback_name, result.vmid))}/creating",
                     ) {
                         popUpTo("home")
                     }
@@ -148,7 +156,13 @@ private fun ProxPanelNav(container: AppContainer) {
                 )
             }
             val vm: GuestDetailViewModel = viewModel(
-                factory = GuestDetailViewModel.factory(container.api, container.jobTracker, guest),
+                factory = GuestDetailViewModel.factory(
+                    container.api,
+                    container.jobTracker,
+                    container.prefsStore,
+                    container.l10n,
+                    guest,
+                ),
             )
             GuestDetailScreen(viewModel = vm, onBack = { nav.popBackStack() })
         }

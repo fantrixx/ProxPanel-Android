@@ -29,6 +29,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import com.proxpanel.app.R
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.proxpanel.app.ui.components.ProxCard
 import com.proxpanel.app.ui.components.ProxEmptyState
@@ -59,11 +61,12 @@ fun MediaScreen(viewModel: MediaViewModel) {
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             ProxTopBar(
-                title = "Media",
-                subtitle = "ISOs & Templates",
+                title = stringResource(R.string.media_title),
+                subtitle = stringResource(R.string.media_subtitle),
+                embeddedInShell = true,
                 actions = {
                     IconButton(onClick = { viewModel.refresh() }) {
-                        Icon(Icons.Default.Refresh, contentDescription = "Refresh")
+                        Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.action_refresh))
                     }
                 },
             )
@@ -77,7 +80,7 @@ fun MediaScreen(viewModel: MediaViewModel) {
             ProxSearchBar(
                 value = query,
                 onValueChange = { query = it },
-                placeholder = "Name, Storage, Node…",
+                placeholder = stringResource(R.string.media_search_placeholder),
             )
             Row(
                 modifier = Modifier.padding(horizontal = ProxSpace.screen, vertical = ProxSpace.sm),
@@ -86,7 +89,7 @@ fun MediaScreen(viewModel: MediaViewModel) {
                 FilterChip(
                     selected = state.tab == MediaTab.Iso,
                     onClick = { viewModel.setTab(MediaTab.Iso) },
-                    label = { Text("ISOs") },
+                    label = { Text(stringResource(R.string.media_tab_isos)) },
                     shape = MaterialTheme.shapes.small,
                     colors = FilterChipDefaults.filterChipColors(
                         selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
@@ -96,7 +99,7 @@ fun MediaScreen(viewModel: MediaViewModel) {
                 FilterChip(
                     selected = state.tab == MediaTab.Template,
                     onClick = { viewModel.setTab(MediaTab.Template) },
-                    label = { Text("Templates") },
+                    label = { Text(stringResource(R.string.media_tab_templates)) },
                     shape = MaterialTheme.shapes.small,
                     colors = FilterChipDefaults.filterChipColors(
                         selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
@@ -114,7 +117,7 @@ fun MediaScreen(viewModel: MediaViewModel) {
                     state.loading && state.items.isEmpty() -> ProxLoadingState()
                     filtered.isEmpty() -> ProxEmptyState(
                         title = state.error
-                            ?: if (query.isNotBlank()) "Keine Treffer" else "Keine Medien",
+                            ?: if (query.isNotBlank()) stringResource(R.string.empty_no_results) else stringResource(R.string.media_empty),
                         icon = Icons.Outlined.Album,
                     )
                     else -> {

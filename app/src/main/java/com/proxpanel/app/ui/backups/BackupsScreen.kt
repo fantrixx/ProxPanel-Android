@@ -47,6 +47,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.res.stringResource
+import com.proxpanel.app.R
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
@@ -104,15 +106,16 @@ fun BackupsScreen(viewModel: BackupsViewModel) {
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             ProxTopBar(
-                title = "Backups",
+                title = stringResource(R.string.backups_title),
                 subtitle = if (state.guests.isNotEmpty()) {
-                    "$withBackup von ${state.guests.size} mit Backup"
+                    stringResource(R.string.backups_subtitle, withBackup, state.guests.size)
                 } else {
                     null
                 },
+                embeddedInShell = true,
                 actions = {
                     IconButton(onClick = { viewModel.refresh() }) {
-                        Icon(Icons.Default.Refresh, contentDescription = "Refresh")
+                        Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.action_refresh))
                     }
                 },
             )
@@ -127,7 +130,7 @@ fun BackupsScreen(viewModel: BackupsViewModel) {
             ProxSearchBar(
                 value = query,
                 onValueChange = { query = it },
-                placeholder = "Name, VMID, Node, Format…",
+                placeholder = stringResource(R.string.backups_search_placeholder),
             )
             Spacer(Modifier.height(ProxSpace.sm))
             PullToRefreshBox(
@@ -136,9 +139,9 @@ fun BackupsScreen(viewModel: BackupsViewModel) {
                 modifier = Modifier.fillMaxSize(),
             ) {
                 when {
-                    state.loading && state.guests.isEmpty() -> ProxLoadingState(label = "Backups laden…")
+                    state.loading && state.guests.isEmpty() -> ProxLoadingState(label = stringResource(R.string.backups_loading))
                     filtered.isEmpty() -> ProxEmptyState(
-                        title = if (state.guests.isEmpty()) "Keine Gäste" else "Keine Treffer",
+                        title = if (state.guests.isEmpty()) stringResource(R.string.guests_empty_none) else stringResource(R.string.empty_no_results),
                         icon = Icons.Outlined.Inventory2,
                     )
                     else -> {
@@ -216,23 +219,29 @@ private fun BackupCard(
             }
             Spacer(Modifier.height(ProxSpace.xs))
             Text(
-                "${guest.node} · $kindLabel ${guest.vmid} · ${guest.backupCount} backups",
+                stringResource(
+                    R.string.backups_card_backups_count,
+                    guest.node,
+                    kindLabel,
+                    guest.vmid,
+                    guest.backupCount,
+                ),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Spacer(Modifier.height(ProxSpace.md))
-            DetailRow("Letztes Backup", formatBackupTime(last?.ctime))
-            DetailRow("Format", backupFormatLabel(last))
-            DetailRow("Größe", formatBackupSize(last?.size))
+            DetailRow(stringResource(R.string.backups_last_backup), formatBackupTime(last?.ctime))
+            DetailRow(stringResource(R.string.backup_meta_format), backupFormatLabel(last))
+            DetailRow(stringResource(R.string.backup_meta_size), formatBackupSize(last?.size))
             DetailRow("Ort", backupLocation(last))
             if (last != null) {
-                DetailRow("Datei", backupFileName(last.volid), mono = true)
+                DetailRow(stringResource(R.string.backups_file), backupFileName(last.volid), mono = true)
             }
         }
         if (running) {
             Spacer(Modifier.height(ProxSpace.md))
             BackupRunningBanner(
-                label = if (starting) "Backup wird gestartet…" else "Backup läuft…",
+                label = if (starting) stringResource(R.string.backup_starting) else stringResource(R.string.backup_running),
             )
         }
         Spacer(Modifier.height(ProxSpace.md))
@@ -243,7 +252,7 @@ private fun BackupCard(
         ) {
             Icon(Icons.Default.CloudUpload, contentDescription = null)
             Spacer(Modifier.width(ProxSpace.sm))
-            Text(if (running) "Läuft…" else "Backup jetzt")
+            Text(if (running) stringResource(R.string.running_ellipsis) else stringResource(R.string.backup_now))
         }
     }
 }
@@ -290,7 +299,7 @@ private fun BackupDetailsDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Backup-Details") },
+        title = { Text(stringResource(R.string.backups_details_title)) },
         text = {
             Column(
                 modifier = Modifier
@@ -305,27 +314,27 @@ private fun BackupDetailsDialog(
                 )
                 Spacer(Modifier.height(ProxSpace.md))
                 if (last == null) {
-                    Text("Noch kein Backup vorhanden.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(stringResource(R.string.backups_none_yet), color = MaterialTheme.colorScheme.onSurfaceVariant)
                 } else {
-                    DetailRow("Wann", formatBackupTime(last.ctime))
-                    DetailRow("Größe", formatBackupSize(last.size))
-                    DetailRow("Format", backupFormatLabel(last))
+                    DetailRow(stringResource(R.string.backup_meta_when), formatBackupTime(last.ctime))
+                    DetailRow(stringResource(R.string.backup_meta_size), formatBackupSize(last.size))
+                    DetailRow(stringResource(R.string.backup_meta_format), backupFormatLabel(last))
                     DetailRow("Ort", backupLocation(last))
-                    DetailRow("Datei", backupFileName(last.volid), mono = true)
-                    DetailRow("Volume", last.volid, mono = true)
+                    DetailRow(stringResource(R.string.backups_file), backupFileName(last.volid), mono = true)
+                    DetailRow(stringResource(R.string.backups_volume), last.volid, mono = true)
                     last.notes?.takeIf { it.isNotBlank() }?.let {
-                        DetailRow("Notes", it)
+                        DetailRow(stringResource(R.string.backups_notes), it)
                     }
                 }
                 Spacer(Modifier.height(ProxSpace.lg))
                 Text(
-                    "Alle Backups (${guest.backupCount})",
+                    stringResource(R.string.backups_all_count, guest.backupCount),
                     style = MaterialTheme.typography.titleSmall,
                 )
                 Spacer(Modifier.height(ProxSpace.sm))
                 when {
-                    loading -> Text("Laden…", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    history.isEmpty() -> Text("Keine Einträge.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    loading -> Text(stringResource(R.string.loading_default), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    history.isEmpty() -> Text(stringResource(R.string.backups_history_empty), color = MaterialTheme.colorScheme.onSurfaceVariant)
                     else -> history.forEach { item ->
                         ProxCard {
                             Text(
@@ -344,9 +353,9 @@ private fun BackupDetailsDialog(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                             Row {
-                                TextButton(onClick = { restoreTarget = item }) { Text("Restore") }
+                                TextButton(onClick = { restoreTarget = item }) { Text(stringResource(R.string.action_restore)) }
                                 TextButton(onClick = { deleteTarget = item }) {
-                                    Text("Delete", color = ProxBad)
+                                    Text(stringResource(R.string.action_delete), color = ProxBad)
                                 }
                             }
                         }
@@ -356,10 +365,10 @@ private fun BackupDetailsDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = onBackupNow) { Text("Backup jetzt") }
+            TextButton(onClick = onBackupNow) { Text(stringResource(R.string.backup_now)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Schließen") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_close)) }
         },
         shape = MaterialTheme.shapes.large,
     )
@@ -380,8 +389,8 @@ private fun BackupDetailsDialog(
     deleteTarget?.let { item ->
         AlertDialog(
             onDismissRequest = { deleteTarget = null },
-            title = { Text("Backup löschen?") },
-            text = { Text("„${backupFileName(item.volid)}“ dauerhaft löschen?") },
+            title = { Text(stringResource(R.string.confirm_backup_delete_title)) },
+            text = { Text(stringResource(R.string.confirm_backup_delete_body, backupFileName(item.volid))) },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -392,10 +401,10 @@ private fun BackupDetailsDialog(
                                 .getOrDefault(emptyList())
                         }
                     },
-                ) { Text("Löschen", color = ProxBad) }
+                ) { Text(stringResource(R.string.action_delete), color = ProxBad) }
             },
             dismissButton = {
-                TextButton(onClick = { deleteTarget = null }) { Text("Abbrechen") }
+                TextButton(onClick = { deleteTarget = null }) { Text(stringResource(R.string.action_cancel)) }
             },
             shape = MaterialTheme.shapes.large,
         )
@@ -417,7 +426,7 @@ private fun StartBackupDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Backup erstellen") },
+        title = { Text(stringResource(R.string.backups_create_title)) },
         text = {
             Column {
                 Text(
@@ -426,17 +435,17 @@ private fun StartBackupDialog(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Spacer(Modifier.height(ProxSpace.md))
-                SimpleDropdown("Storage", storage, storages, !busy) { storage = it }
+                SimpleDropdown(stringResource(R.string.storage_label), storage, storages, !busy) { storage = it }
                 Spacer(Modifier.height(ProxSpace.sm))
                 SimpleDropdown(
-                    "Mode",
+                    stringResource(R.string.backup_mode_label),
                     mode,
                     listOf("snapshot", "suspend", "stop"),
                     !busy,
                 ) { mode = it }
                 Spacer(Modifier.height(ProxSpace.sm))
                 SimpleDropdown(
-                    "Compress",
+                    stringResource(R.string.backup_compress_label),
                     compress,
                     listOf("zstd", "gzip", "lzo", "none"),
                     !busy,
@@ -447,10 +456,10 @@ private fun StartBackupDialog(
             TextButton(
                 onClick = { onStart(storage, mode, compress) },
                 enabled = !busy && storage.isNotBlank(),
-            ) { Text(if (busy) "Starting…" else "Starten") }
+            ) { Text(if (busy) stringResource(R.string.starting_ellipsis) else stringResource(R.string.backups_start_button)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss, enabled = !busy) { Text("Abbrechen") }
+            TextButton(onClick = onDismiss, enabled = !busy) { Text(stringResource(R.string.action_cancel)) }
         },
         shape = MaterialTheme.shapes.large,
     )
@@ -469,7 +478,7 @@ private fun RestoreDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Backup wiederherstellen?") },
+        title = { Text(stringResource(R.string.confirm_restore_title)) },
         text = {
             Column {
                 Text(
@@ -481,7 +490,7 @@ private fun RestoreDialog(
                 OutlinedTextField(
                     value = vmid,
                     onValueChange = { vmid = it.filter { c -> c.isDigit() } },
-                    label = { Text("Ziel-VMID") },
+                    label = { Text(stringResource(R.string.target_vmid)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                     shape = MaterialTheme.shapes.small,
@@ -494,7 +503,7 @@ private fun RestoreDialog(
                 OutlinedTextField(
                     value = storage,
                     onValueChange = { storage = it },
-                    label = { Text("Storage (optional)") },
+                    label = { Text(stringResource(R.string.storage_optional)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                     shape = MaterialTheme.shapes.small,
@@ -505,7 +514,7 @@ private fun RestoreDialog(
                 )
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Checkbox(checked = force, onCheckedChange = { force = it })
-                    Text("Force überschreiben", style = MaterialTheme.typography.bodyMedium)
+                    Text(stringResource(R.string.force_overwrite), style = MaterialTheme.typography.bodyMedium)
                 }
             }
         },
@@ -515,10 +524,10 @@ private fun RestoreDialog(
                     val id = vmid.toIntOrNull() ?: return@TextButton
                     onConfirm(id, storage.ifBlank { null }, force)
                 },
-            ) { Text("Restore") }
+            ) { Text(stringResource(R.string.action_restore)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Abbrechen") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
         },
         shape = MaterialTheme.shapes.large,
     )

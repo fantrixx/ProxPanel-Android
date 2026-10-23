@@ -52,7 +52,9 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.proxpanel.app.R
 import com.proxpanel.app.ui.theme.ProxBad
 import com.proxpanel.app.ui.theme.ProxCt
 import com.proxpanel.app.ui.theme.ProxCtContainer
@@ -194,6 +196,8 @@ fun SectionLabel(text: String) {
 fun ProxCard(
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null,
+    borderColor: Color = Color.Transparent,
+    borderWidth: androidx.compose.ui.unit.Dp = 1.dp,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     Surface(
@@ -204,6 +208,11 @@ fun ProxCard(
         color = MaterialTheme.colorScheme.surfaceContainer,
         tonalElevation = 0.dp,
         shadowElevation = 0.dp,
+        border = if (borderColor.alpha > 0.02f) {
+            androidx.compose.foundation.BorderStroke(borderWidth, borderColor)
+        } else {
+            null
+        },
     ) {
         Column(
             modifier = Modifier.padding(ProxSpace.card),
@@ -237,6 +246,11 @@ fun ProxTopBar(
     subtitle: String? = null,
     navigationIcon: @Composable (() -> Unit)? = null,
     actions: @Composable () -> Unit = {},
+    /**
+     * When true (HomeShell tabs), skip status-bar insets — the shell already pads them.
+     * Standalone screens (Create, Detail, Login) must keep the default false.
+     */
+    embeddedInShell: Boolean = false,
 ) {
     TopAppBar(
         title = {
@@ -260,8 +274,11 @@ fun ProxTopBar(
         },
         navigationIcon = { navigationIcon?.invoke() },
         actions = { actions() },
-        // HomeShell already applies statusBarsPadding (Active Jobs banner sits above).
-        windowInsets = WindowInsets(0, 0, 0, 0),
+        windowInsets = if (embeddedInShell) {
+            WindowInsets(0, 0, 0, 0)
+        } else {
+            TopAppBarDefaults.windowInsets
+        },
         colors = TopAppBarDefaults.topAppBarColors(
             containerColor = MaterialTheme.colorScheme.background,
             scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
@@ -278,6 +295,7 @@ fun ProxEmptyState(
     subtitle: String? = null,
     icon: ImageVector = Icons.Outlined.Inbox,
     modifier: Modifier = Modifier,
+    action: @Composable (() -> Unit)? = null,
 ) {
     Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Column(
@@ -299,12 +317,17 @@ fun ProxEmptyState(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+            if (action != null) {
+                Spacer(Modifier.height(ProxSpace.lg))
+                action()
+            }
         }
     }
 }
 
 @Composable
-fun ProxLoadingState(modifier: Modifier = Modifier, label: String = "Laden…") {
+fun ProxLoadingState(modifier: Modifier = Modifier, label: String? = null) {
+    val text = label ?: stringResource(R.string.loading_default)
     Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             CircularProgressIndicator(
@@ -314,7 +337,7 @@ fun ProxLoadingState(modifier: Modifier = Modifier, label: String = "Laden…") 
             )
             Spacer(Modifier.height(ProxSpace.md))
             Text(
-                text = label,
+                text = text,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -362,7 +385,7 @@ fun ProxSearchBar(
         trailingIcon = {
             if (value.isNotEmpty()) {
                 IconButton(onClick = { onValueChange("") }) {
-                    Icon(Icons.Default.Clear, contentDescription = "Clear")
+                    Icon(Icons.Default.Clear, contentDescription = stringResource(R.string.cd_clear_search))
                 }
             }
         },

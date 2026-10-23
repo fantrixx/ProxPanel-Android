@@ -3,7 +3,9 @@ package com.proxpanel.app.ui.marketplace
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.proxpanel.app.R
 import com.proxpanel.app.data.MarketplaceScript
+import com.proxpanel.app.util.L10n
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -31,7 +33,9 @@ data class MarketplaceUiState(
     val error: String? = null,
 )
 
-class MarketplaceViewModel : ViewModel() {
+class MarketplaceViewModel(
+    private val l10n: L10n,
+) : ViewModel() {
     private val _state = MutableStateFlow(MarketplaceUiState())
     val state: StateFlow<MarketplaceUiState> = _state.asStateFlow()
 
@@ -67,7 +71,7 @@ class MarketplaceViewModel : ViewModel() {
                 _state.update { it.copy(scripts = scripts, loading = false, error = null) }
             } catch (e: Exception) {
                 _state.update {
-                    it.copy(loading = false, error = e.message ?: "Marketplace laden fehlgeschlagen")
+                    it.copy(loading = false, error = e.message ?: l10n.get(R.string.error_marketplace_load))
                 }
             }
         }
@@ -201,9 +205,9 @@ class MarketplaceViewModel : ViewModel() {
     }
 
     companion object {
-        fun factory() = object : ViewModelProvider.Factory {
+        fun factory(l10n: L10n) = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
-            override fun <T : ViewModel> create(modelClass: Class<T>): T = MarketplaceViewModel() as T
+            override fun <T : ViewModel> create(modelClass: Class<T>): T = MarketplaceViewModel(l10n) as T
         }
     }
 }

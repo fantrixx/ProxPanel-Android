@@ -7,10 +7,15 @@ import com.proxpanel.app.data.ApiClient
 import com.proxpanel.app.data.ApiException
 import com.proxpanel.app.data.BackupStorage
 import com.proxpanel.app.data.GuestDetail
+import com.proxpanel.app.data.GuestIconRecord
 import com.proxpanel.app.data.GuestItem
+import com.proxpanel.app.data.PrefsStore
+import com.proxpanel.app.data.guestIconKey
 import com.proxpanel.app.data.MediaItem
+import com.proxpanel.app.R
 import com.proxpanel.app.data.Snapshot
 import com.proxpanel.app.jobs.JobTracker
+import com.proxpanel.app.util.L10n
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -47,11 +52,14 @@ data class DetailUiState(
     val error: String? = null,
     val message: String? = null,
     val confirm: PowerConfirm? = null,
+    val guestIcon: GuestIconRecord? = null,
 )
 
 class GuestDetailViewModel(
     private val api: ApiClient,
     private val jobTracker: JobTracker,
+    private val prefsStore: PrefsStore,
+    private val l10n: L10n,
     guest: GuestItem,
 ) : ViewModel() {
     private val _state = MutableStateFlow(DetailUiState(guest = guest))
@@ -59,8 +67,14 @@ class GuestDetailViewModel(
     private var pollJob: Job? = null
     private var localBackupStarted = false
     private var backupSeenOnApi = false
+    private val iconKey = guestIconKey(guest.node, guest.type, guest.vmid)
 
     init {
+        viewModelScope.launch {
+            prefsStore.guestIcons.collect { icons ->
+                _state.update { it.copy(guestIcon = icons[iconKey]) }
+            }
+        }
         refresh()
         pollJob = viewModelScope.launch {
             while (isActive) {
@@ -69,6 +83,10 @@ class GuestDetailViewModel(
                 syncBackupRunning()
             }
         }
+    }
+
+    fun setGuestIcon(record: GuestIconRecord?) {
+        viewModelScope.launch { prefsStore.setGuestIcon(iconKey, record) }
     }
 
     fun setTab(tab: DetailTab) {
@@ -84,6 +102,7 @@ class GuestDetailViewModel(
     fun setCores(value: String) = _state.update { it.copy(coresInput = value) }
     fun setMemory(value: String) = _state.update { it.copy(memoryInput = value) }
     fun setSwap(value: String) = _state.update { it.copy(swapInput = value) }
+    fun clearMessage() = _state.update { it.copy(message = null, error = null) }
 
     fun refresh(silent: Boolean = false) {
         viewModelScope.launch {
@@ -129,7 +148,7 @@ class GuestDetailViewModel(
             } catch (e: Exception) {
                 if (!silent) {
                     _state.update {
-                        it.copy(loading = false, error = e.message ?: "Failed to load guest")
+                        it.copy(loading = false, error = e.message ?: l10n.get(R.string.error_load_guest_failed))
                     }
                 }
             }
@@ -161,7 +180,7 @@ class GuestDetailViewModel(
     fun createSnapshot() {
         val name = _state.value.newSnapName.trim()
         if (name.isBlank()) {
-            _state.update { it.copy(error = "Snapshot-Name erforderlich") }
+            _state.update { it.copy(error = l10n.get(R.string.error_snapshot_name_required)) }
             return
         }
         viewModelScope.launch {
@@ -170,7 +189,7 @@ class GuestDetailViewModel(
             try {
                 api.createSnapshot(g.node, g.type, g.vmid, name)
                 _state.update {
-                    it.copy(busy = false, message = "Snapshot erstellt", newSnapName = "")
+                    it.copy(busy = false, message = l10n.get(R.string.toast_snapshot_created), newSnapName = "")
                 }
                 loadSnapshots()
             } catch (e: Exception) {
@@ -185,7 +204,7 @@ class GuestDetailViewModel(
             _state.update { it.copy(busy = true, error = null) }
             try {
                 api.deleteSnapshot(g.node, g.type, g.vmid, name)
-                _state.update { it.copy(busy = false, message = "Snapshot gelöscht") }
+                _state.update { it.copy(busy = false, message = l10n.get(R.string.toast_snapshot_deleted)) }
                 loadSnapshots()
             } catch (e: Exception) {
                 _state.update { it.copy(busy = false, error = e.message) }
@@ -199,7 +218,7 @@ class GuestDetailViewModel(
             _state.update { it.copy(busy = true, error = null) }
             try {
                 api.rollbackSnapshot(g.node, g.type, g.vmid, name)
-                _state.update { it.copy(busy = false, message = "Rollback gestartet") }
+                _state.update { it.copy(busy = false, message = l10n.get(R.string.toast_rollback_started)) }
                 delay(800)
                 refresh(silent = true)
             } catch (e: Exception) {
@@ -224,7 +243,7 @@ class GuestDetailViewModel(
                     memoryMb = memory,
                     swapMb = swap,
                 )
-                _state.update { it.copy(busy = false, message = "Ressourcen gespeichert") }
+                _state.update { it.copy(busy = false, message = l10n.get(R.string.toast_resources_saved)) }
                 refresh(silent = true)
             } catch (e: Exception) {
                 _state.update { it.copy(busy = false, error = e.message) }
@@ -253,7 +272,7 @@ class GuestDetailViewModel(
                     compress = compress,
                 )
                 _state.update {
-                    it.copy(busy = false, backupRunning = true, message = "Backup gestartet")
+                    it.copy(busy = false, backupRunning = true, message = l10n.get(R.string.toast_backup_started))
                 }
             } catch (e: Exception) {
                 localBackupStarted = false
@@ -279,7 +298,7 @@ class GuestDetailViewModel(
                     force = force,
                 )
                 _state.update {
-                    it.copy(busy = false, message = "Restore gestartet → VMID $targetVmid")
+                    it.copy(busy = false, message = l10n.get(R.string.toast_restore_started_vmid, targetVmid))
                 }
             } catch (e: Exception) {
                 _state.update { it.copy(busy = false, error = e.message) }
@@ -292,7 +311,7 @@ class GuestDetailViewModel(
             _state.update { it.copy(busy = true, error = null) }
             try {
                 api.deleteBackup(item.node, item.storage, item.volid)
-                _state.update { it.copy(busy = false, message = "Backup gelöscht") }
+                _state.update { it.copy(busy = false, message = l10n.get(R.string.toast_backup_deleted)) }
                 loadBackups()
             } catch (e: Exception) {
                 _state.update { it.copy(busy = false, error = e.message) }
@@ -321,7 +340,7 @@ class GuestDetailViewModel(
             _state.update {
                 it.copy(
                     backupRunning = false,
-                    message = if (wasRunning) "Backup fertig" else it.message,
+                    message = if (wasRunning) l10n.get(R.string.toast_backup_finished) else it.message,
                 )
             }
             if (wasRunning) loadBackups()
@@ -343,22 +362,22 @@ class GuestDetailViewModel(
         val confirm = when (action) {
             "shutdown" -> PowerConfirm(
                 action = action,
-                title = "Herunterfahren?",
-                body = "„$name“ wird ordentlich heruntergefahren. Ungespeicherte Daten können verloren gehen.",
-                confirm = "Herunterfahren",
+                title = l10n.get(R.string.confirm_shutdown_title),
+                body = l10n.get(R.string.confirm_shutdown_body, name),
+                confirm = l10n.get(R.string.confirm_shutdown_confirm),
             )
             "stop" -> PowerConfirm(
                 action = action,
-                title = "Force Stop?",
-                body = "„$name“ wird hart gestoppt (wie Strom ziehen). Datenverlust möglich.",
-                confirm = "Stoppen",
+                title = l10n.get(R.string.confirm_force_stop_title),
+                body = l10n.get(R.string.confirm_force_stop_body, name),
+                confirm = l10n.get(R.string.confirm_force_stop_confirm),
                 danger = true,
             )
             "reboot" -> PowerConfirm(
                 action = action,
-                title = "Neustart?",
-                body = "„$name“ wird neu gestartet. Laufende Dienste werden kurz unterbrochen.",
-                confirm = "Neustart",
+                title = l10n.get(R.string.confirm_reboot_title),
+                body = l10n.get(R.string.confirm_reboot_body, name),
+                confirm = l10n.get(R.string.confirm_reboot_confirm),
             )
             else -> null
         }
@@ -383,25 +402,30 @@ class GuestDetailViewModel(
             _state.update { it.copy(busy = true, error = null, message = null) }
             try {
                 api.action(g.node, g.type, g.vmid, action)
-                _state.update {
-                    it.copy(busy = false, message = "${action.replaceFirstChar { c -> c.uppercase() }} requested")
+                val msg = when (action) {
+                    "start" -> l10n.get(R.string.toast_power_start, g.name)
+                    "shutdown" -> l10n.get(R.string.toast_power_shutdown, g.name)
+                    "reboot" -> l10n.get(R.string.toast_power_reboot, g.name)
+                    "stop" -> l10n.get(R.string.toast_power_stop, g.name)
+                    else -> l10n.get(R.string.toast_action_requested, action)
                 }
+                _state.update { it.copy(busy = false, message = msg) }
                 delay(800)
                 refresh(silent = true)
             } catch (e: ApiException) {
                 _state.update { it.copy(busy = false, error = e.message) }
             } catch (e: Exception) {
-                _state.update { it.copy(busy = false, error = e.message ?: "Action failed") }
+                _state.update { it.copy(busy = false, error = e.message ?: l10n.get(R.string.error_action_failed)) }
             }
         }
     }
 
     companion object {
-        fun factory(api: ApiClient, jobTracker: JobTracker, guest: GuestItem) =
+        fun factory(api: ApiClient, jobTracker: JobTracker, prefsStore: PrefsStore, l10n: L10n, guest: GuestItem) =
             object : ViewModelProvider.Factory {
                 @Suppress("UNCHECKED_CAST")
                 override fun <T : ViewModel> create(modelClass: Class<T>): T =
-                    GuestDetailViewModel(api, jobTracker, guest) as T
+                    GuestDetailViewModel(api, jobTracker, prefsStore, l10n, guest) as T
             }
     }
 }

@@ -36,6 +36,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.res.stringResource
+import com.proxpanel.app.R
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
@@ -66,21 +68,26 @@ fun TasksScreen(viewModel: TasksViewModel) {
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             ProxTopBar(
-                title = "Tasks",
+                title = stringResource(R.string.tasks_title),
                 subtitle = if (state.tasks.isNotEmpty()) {
                     val running = state.tasks.count { taskOutcome(it) == TaskOutcome.Running }
-                    buildString {
-                        append("${filtered.size}")
-                        if (filtered.size != state.tasks.size) append(" / ${state.tasks.size}")
-                        append(" Einträge")
-                        if (running > 0) append(" · $running laufend")
+                    val base = if (filtered.size != state.tasks.size) {
+                        stringResource(R.string.tasks_subtitle_filtered, filtered.size, state.tasks.size)
+                    } else {
+                        stringResource(R.string.tasks_subtitle_entries, filtered.size)
+                    }
+                    if (running > 0) {
+                        base + stringResource(R.string.tasks_subtitle_running, running)
+                    } else {
+                        base
                     }
                 } else {
                     null
                 },
+                embeddedInShell = true,
                 actions = {
                     IconButton(onClick = { viewModel.refresh() }) {
-                        Icon(Icons.Default.Refresh, contentDescription = "Refresh")
+                        Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.action_refresh))
                     }
                 },
             )
@@ -94,7 +101,7 @@ fun TasksScreen(viewModel: TasksViewModel) {
             ProxSearchBar(
                 value = state.query,
                 onValueChange = viewModel::setQuery,
-                placeholder = "Task, Guest, Node, User…",
+                placeholder = stringResource(R.string.tasks_search_placeholder),
             )
             Spacer(Modifier.height(ProxSpace.sm))
             PullToRefreshBox(
@@ -103,10 +110,10 @@ fun TasksScreen(viewModel: TasksViewModel) {
                 modifier = Modifier.fillMaxSize(),
             ) {
                 when {
-                    state.loading && state.tasks.isEmpty() -> ProxLoadingState(label = "Tasks laden…")
+                    state.loading && state.tasks.isEmpty() -> ProxLoadingState(label = stringResource(R.string.tasks_loading))
                     filtered.isEmpty() -> ProxEmptyState(
-                        title = state.error ?: if (state.query.isNotBlank()) "Keine Treffer" else "Keine Tasks",
-                        subtitle = "Cluster-Aufgaben erscheinen hier",
+                        title = state.error ?: if (state.query.isNotBlank()) stringResource(R.string.empty_no_results) else stringResource(R.string.tasks_empty),
+                        subtitle = stringResource(R.string.tasks_empty_subtitle),
                         icon = Icons.AutoMirrored.Outlined.ListAlt,
                     )
                     else -> {
@@ -142,7 +149,12 @@ private fun TaskCard(
     onToggle: () -> Unit,
 ) {
     val copy = remember(task, guests) { describeTask(task, guests) }
-    val duration = formatTaskDuration(task, copy.outcome == TaskOutcome.Running)
+    val rawDuration = formatTaskDuration(task, copy.outcome == TaskOutcome.Running)
+    val duration = if (copy.outcome == TaskOutcome.Running && rawDuration != null) {
+        stringResource(R.string.task_duration_so_far, rawDuration)
+    } else {
+        rawDuration
+    }
     val whenLabel = task.starttime?.let {
         DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(it * 1000))
     }
@@ -211,11 +223,11 @@ private fun TaskCard(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp)
                             Spacer(Modifier.width(ProxSpace.sm))
-                            Text("Details laden…", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(stringResource(R.string.tasks_log_loading), color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                     logLines.isEmpty() -> Text(
-                        "Keine weiteren Details.",
+                        stringResource(R.string.tasks_log_empty),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -246,9 +258,9 @@ private fun TaskCard(
 @Composable
 private fun OutcomeBadge(outcome: TaskOutcome) {
     val (bg, fg, label) = when (outcome) {
-        TaskOutcome.Running -> Triple(ProxWarn.copy(alpha = 0.18f), ProxWarn, "Running")
-        TaskOutcome.Fail -> Triple(ProxBad.copy(alpha = 0.18f), ProxBad, "Failed")
-        TaskOutcome.Ok -> Triple(ProxGood.copy(alpha = 0.18f), ProxGood, "Done")
+        TaskOutcome.Running -> Triple(ProxWarn.copy(alpha = 0.18f), ProxWarn, stringResource(R.string.task_outcome_running))
+        TaskOutcome.Fail -> Triple(ProxBad.copy(alpha = 0.18f), ProxBad, stringResource(R.string.task_outcome_failed))
+        TaskOutcome.Ok -> Triple(ProxGood.copy(alpha = 0.18f), ProxGood, stringResource(R.string.task_outcome_done))
     }
     Surface(shape = RoundedCornerShape(999.dp), color = bg) {
         Row(
@@ -283,5 +295,5 @@ private fun formatTaskDuration(task: PveTask, running: Boolean): String? {
             "${h}h ${m}m"
         }
     }
-    return if (running) "$text bisher" else text
+    return text
 }

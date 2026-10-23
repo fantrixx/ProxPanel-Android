@@ -3,11 +3,13 @@ package com.proxpanel.app.ui.login
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.proxpanel.app.R
 import com.proxpanel.app.data.ApiClient
 import com.proxpanel.app.data.ApiException
 import com.proxpanel.app.data.CredentialStore
 import com.proxpanel.app.data.LoginPrefs
 import com.proxpanel.app.data.SessionStore
+import com.proxpanel.app.util.L10n
 import com.proxpanel.app.util.normalizeBaseUrl
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -33,6 +35,7 @@ class LoginViewModel(
     private val api: ApiClient,
     private val sessionStore: SessionStore,
     private val credentialStore: CredentialStore,
+    private val l10n: L10n,
 ) : ViewModel() {
     private val _state = MutableStateFlow(LoginUiState())
     val state: StateFlow<LoginUiState> = _state.asStateFlow()
@@ -65,7 +68,6 @@ class LoginViewModel(
                     .onFailure {
                         sessionStore.clearSession()
                         api.clearSessionLocal()
-                        // Ticket expired — fall back to saved credentials on the form.
                         _state.update { s -> s.copy(checkingSession = false) }
                     }
             } else {
@@ -82,7 +84,7 @@ class LoginViewModel(
         val s = _state.value
         val host = normalizeBaseUrl(s.proxmoxHost)
         if (host.isBlank() || s.username.isBlank() || s.password.isBlank()) {
-            _state.update { it.copy(error = "Proxmox server, username, and password are required.") }
+            _state.update { it.copy(error = l10n.get(R.string.login_error_required)) }
             return
         }
         viewModelScope.launch {
@@ -113,14 +115,18 @@ class LoginViewModel(
                     it.copy(
                         pending = false,
                         signedIn = true,
-                        // Keep password in memory only when remember is on.
                         password = if (s.rememberCredentials) s.password else "",
                     )
                 }
             } catch (e: ApiException) {
                 _state.update { it.copy(pending = false, error = e.message) }
             } catch (e: Exception) {
-                _state.update { it.copy(pending = false, error = e.message ?: "Sign-in failed") }
+                _state.update {
+                    it.copy(
+                        pending = false,
+                        error = e.message ?: l10n.get(R.string.login_error_sign_in_failed),
+                    )
+                }
             }
         }
     }
@@ -130,10 +136,11 @@ class LoginViewModel(
             api: ApiClient,
             store: SessionStore,
             credentials: CredentialStore,
+            l10n: L10n,
         ) = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>): T =
-                LoginViewModel(api, store, credentials) as T
+                LoginViewModel(api, store, credentials, l10n) as T
         }
     }
 }

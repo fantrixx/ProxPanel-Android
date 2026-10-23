@@ -1,11 +1,16 @@
 package com.proxpanel.app.ui.components
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -54,25 +59,20 @@ fun StatusBadge(
 ) {
     val visual = guestVisualStatus(status, qmpstatus, lock, pending)
     val tone = toneFor(visual)
-    val bg: Color
-    val fg: Color
-    val dot: Color
-    when (tone) {
-        StatusTone.Good -> {
-            bg = ProxGood.copy(alpha = 0.15f); fg = ProxGood; dot = ProxGood
-        }
-        StatusTone.Warn -> {
-            bg = ProxWarn.copy(alpha = 0.15f); fg = ProxWarn; dot = ProxWarn
-        }
-        StatusTone.Accent -> {
-            bg = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
-            fg = MaterialTheme.colorScheme.primary
-            dot = MaterialTheme.colorScheme.primary
-        }
-        StatusTone.Muted -> {
-            bg = ProxMuted.copy(alpha = 0.15f); fg = ProxMuted; dot = ProxMuted
-        }
+    val targetBg = when (tone) {
+        StatusTone.Good -> ProxGood.copy(alpha = 0.15f)
+        StatusTone.Warn -> ProxWarn.copy(alpha = 0.15f)
+        StatusTone.Accent -> MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+        StatusTone.Muted -> ProxMuted.copy(alpha = 0.15f)
     }
+    val targetFg = when (tone) {
+        StatusTone.Good -> ProxGood
+        StatusTone.Warn -> ProxWarn
+        StatusTone.Accent -> MaterialTheme.colorScheme.primary
+        StatusTone.Muted -> ProxMuted
+    }
+    val bg by animateColorAsState(targetBg, tween(320), label = "badge-bg")
+    val fg by animateColorAsState(targetFg, tween(320), label = "badge-fg")
     val pulsing = tone != StatusTone.Muted
     val pulse = rememberInfiniteTransition(label = "status-pulse")
     val pulseScale by pulse.animateFloat(
@@ -115,21 +115,26 @@ fun StatusBadge(
                                 alpha = pulseAlpha
                             }
                             .clip(CircleShape)
-                            .background(dot.copy(alpha = 0.45f)),
+                            .background(fg.copy(alpha = 0.45f)),
                     )
                 }
                 Box(
                     modifier = Modifier
                         .size(6.dp)
                         .clip(CircleShape)
-                        .background(dot),
+                        .background(fg),
                 )
             }
             Spacer(Modifier.width(6.dp))
-            Text(
-                text = statusLabel(visual),
-                style = MaterialTheme.typography.labelMedium,
-            )
+            AnimatedContent(
+                targetState = statusLabel(visual),
+                transitionSpec = {
+                    fadeIn(tween(180)) togetherWith fadeOut(tween(140))
+                },
+                label = "badge-label",
+            ) { label ->
+                Text(text = label, style = MaterialTheme.typography.labelMedium)
+            }
         }
     }
 }

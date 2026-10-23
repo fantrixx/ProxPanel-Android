@@ -34,6 +34,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import com.proxpanel.app.R
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.proxpanel.app.ui.components.KindChip
@@ -54,17 +56,19 @@ fun MarketplaceScreen(viewModel: MarketplaceViewModel) {
     val context = LocalContext.current
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    val copiedMessage = stringResource(R.string.apps_snackbar_copied)
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             ProxTopBar(
-                title = "Apps",
-                subtitle = "Community Scripts",
+                title = stringResource(R.string.apps_title),
+                subtitle = stringResource(R.string.apps_subtitle),
+                embeddedInShell = true,
                 actions = {
                     IconButton(onClick = viewModel::refresh) {
-                        Icon(Icons.Default.Refresh, contentDescription = "Refresh")
+                        Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.action_refresh))
                     }
                 },
             )
@@ -79,11 +83,11 @@ fun MarketplaceScreen(viewModel: MarketplaceViewModel) {
             ProxSearchBar(
                 value = state.query,
                 onValueChange = viewModel::setQuery,
-                placeholder = "Scripts suchen…",
+                placeholder = stringResource(R.string.apps_search_placeholder),
             )
             Spacer(Modifier.height(ProxSpace.sm))
             Text(
-                "Install-Befehl auf dem Proxmox-Host ausführen.",
+                stringResource(R.string.apps_install_hint),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = ProxSpace.screen),
@@ -91,9 +95,9 @@ fun MarketplaceScreen(viewModel: MarketplaceViewModel) {
             Spacer(Modifier.height(ProxSpace.sm))
 
             when {
-                state.loading && filtered.isEmpty() -> ProxLoadingState(label = "Katalog laden…")
+                state.loading && filtered.isEmpty() -> ProxLoadingState(label = stringResource(R.string.apps_loading_catalog))
                 filtered.isEmpty() -> ProxEmptyState(
-                    title = state.error ?: "Keine Scripts",
+                    title = state.error ?: stringResource(R.string.apps_empty),
                     icon = Icons.Outlined.Storefront,
                 )
                 else -> {
@@ -129,16 +133,16 @@ fun MarketplaceScreen(viewModel: MarketplaceViewModel) {
                                     IconButton(onClick = {
                                         val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                                         cm.setPrimaryClip(ClipData.newPlainText("install", script.command))
-                                        scope.launch { snackbar.showSnackbar("Befehl kopiert") }
+                                        scope.launch { snackbar.showSnackbar(copiedMessage) }
                                     }) {
-                                        Icon(Icons.Default.ContentCopy, contentDescription = "Copy")
+                                        Icon(Icons.Default.ContentCopy, contentDescription = stringResource(R.string.action_copy))
                                     }
                                     IconButton(onClick = {
                                         context.startActivity(
                                             Intent(Intent.ACTION_VIEW, Uri.parse(script.pageUrl)),
                                         )
                                     }) {
-                                        Icon(Icons.Default.OpenInBrowser, contentDescription = "Open")
+                                        Icon(Icons.Default.OpenInBrowser, contentDescription = stringResource(R.string.action_open))
                                     }
                                 }
                             }

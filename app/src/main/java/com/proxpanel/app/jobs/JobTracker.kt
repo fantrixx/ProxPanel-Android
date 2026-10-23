@@ -1,7 +1,9 @@
 package com.proxpanel.app.jobs
 
+import com.proxpanel.app.R
 import com.proxpanel.app.data.ApiClient
 import com.proxpanel.app.data.OkResponse
+import com.proxpanel.app.util.L10n
 import com.proxpanel.app.util.formatDuration
 import com.proxpanel.app.util.parseProgressFromLog
 import java.util.UUID
@@ -57,6 +59,7 @@ data class AppToast(
 class JobTracker(
     private val api: ApiClient,
     private val scope: CoroutineScope,
+    private val l10n: L10n,
 ) {
     private val _jobs = MutableStateFlow<List<ActiveJob>>(emptyList())
     val jobs: StateFlow<List<ActiveJob>> = _jobs.asStateFlow()
@@ -67,8 +70,17 @@ class JobTracker(
     private val _toasts = MutableStateFlow<List<AppToast>>(emptyList())
     val toasts: StateFlow<List<AppToast>> = _toasts.asStateFlow()
 
+    /** Fires briefly when a tracked job succeeds — drives success burst UI. */
+    private val _celebration = MutableStateFlow<JobCelebration?>(null)
+    val celebration: StateFlow<JobCelebration?> = _celebration.asStateFlow()
+
     private val pollJobs = mutableMapOf<String, Job>()
     private val mutex = Mutex()
+    private val celebratedIds = mutableSetOf<String>()
+
+    fun clearCelebration() {
+        _celebration.value = null
+    }
 
     fun toast(kind: ToastKind, text: String) {
         val id = UUID.randomUUID().toString()
@@ -106,7 +118,7 @@ class JobTracker(
             rest + job
         }
         _snapshots.update {
-            it + (id to JobSnapshot(running = true, latestLog = if (upid.isBlank()) "Starting…" else null))
+            it + (id to JobSnapshot(running = true, latestLog = if (upid.isBlank()) l10n.get(R.string.starting_ellipsis) else null))
         }
         startPolling(id)
         return id
@@ -154,10 +166,10 @@ class JobTracker(
                 else -> snap?.progress
             },
             label = when {
-                failed -> job.error ?: "Backup failed"
+                failed -> job.error ?: l10n.get(R.string.error_backup_failed)
                 snap?.progress != null -> "${snap.progress.toInt()}%"
-                job.upid.isBlank() -> "Starting…"
-                else -> "Backing up…"
+                job.upid.isBlank() -> l10n.get(R.string.starting_ellipsis)
+                else -> l10n.get(R.string.backing_up_ellipsis)
             },
         )
     }
@@ -171,7 +183,7 @@ class JobTracker(
         mode: String = "snapshot",
         compress: String = "zstd",
     ): OkResponse {
-        val label = name?.ifBlank { null } ?: "Guest $vmid"
+        val label = name?.ifBlank { null } ?: l10n.get(R.string.guest_fallback_name, vmid)
         val kindLabel = if (type == "lxc") "CT" else "VM"
         val jobId = trackJob(
             kind = JobKind.Backup,
@@ -185,17 +197,17 @@ class JobTracker(
             val res = api.startBackup(node, vmid, storage, mode = mode, compress = compress)
             val upid = res.upid
             if (upid.isNullOrBlank()) {
-                val msg = "Keine Task-ID von Proxmox"
+                val msg = l10n.get(R.string.error_no_task_id)
                 failJob(jobId, msg)
                 toast(ToastKind.Err, msg)
                 throw IllegalStateException(msg)
             }
             attachJobUpid(jobId, upid)
-            toast(ToastKind.Ok, "Backup gestartet")
+            toast(ToastKind.Ok, l10n.get(R.string.toast_backup_started))
             res
         } catch (e: Exception) {
-            val message = e.message ?: "Backup fehlgeschlagen"
-            if (message != "Keine Task-ID von Proxmox") {
+            val message = e.message ?: l10n.get(R.string.error_backup_failed)
+            if (message != l10n.get(R.string.error_no_task_id)) {
                 failJob(jobId, message)
                 toast(ToastKind.Err, message)
             }
@@ -212,7 +224,7 @@ class JobTracker(
         storage: String?,
         force: Boolean,
     ): OkResponse {
-        val label = name?.ifBlank { null } ?: "Guest $vmid"
+        val label = name?.ifBlank { null } ?: l10n.get(R.string.guest_fallback_name, vmid)
         val jobId = trackJob(
             kind = JobKind.Restore,
             title = "Restore · $label",
@@ -225,11 +237,11 @@ class JobTracker(
             val res = api.restoreBackup(node, type, vmid, archive, storage, force)
             val upid = res.upid
             if (!upid.isNullOrBlank()) attachJobUpid(jobId, upid)
-            toast(ToastKind.Ok, "Restore gestartet")
+            toast(ToastKind.Ok, l10n.get(R.string.toast_restore_started))
             res
         } catch (e: Exception) {
-            failJob(jobId, e.message ?: "Restore fehlgeschlagen")
-            toast(ToastKind.Err, e.message ?: "Restore fehlgeschlagen")
+            failJob(jobId, e.message ?: l10n.get(R.string.error_restore_failed))
+            toast(ToastKind.Err, e.message ?: l10n.get(R.string.error_restore_failed))
             throw e
         }
     }
@@ -244,7 +256,7 @@ class JobTracker(
             upid = upid.orEmpty(),
             vmid = vmid.toString(),
         )
-        toast(ToastKind.Ok, "$kindLabel $vmid wird erstellt")
+        toast(ToastKind.Ok, l10n.get(R.string.toast_create_started, kindLabel, vmid))
     }
 
     private fun startPolling(id: String) {
@@ -312,7 +324,21 @@ class JobTracker(
                     null
                 }
 
-                if (!running && doneAt == null) doneAt = now
+                if (!running && doneAt == null) {
+                    doneAt = now
+                    if (ok && celebratedIds.add(id)) {
+                        _celebration.value = JobCelebration(
+                            id = id,
+                            title = kindLabel(job.kind, "ok"),
+                            detail = job.title,
+                        )
+                        toast(ToastKind.Ok, "${kindLabel(job.kind, "ok")} · ${job.title.substringAfter("· ").ifBlank { job.detail }}")
+                        scope.launch {
+                            delay(2_800)
+                            if (_celebration.value?.id == id) clearCelebration()
+                        }
+                    }
+                }
 
                 _snapshots.update {
                     it + (id to JobSnapshot(
@@ -365,6 +391,12 @@ data class GuestJobProgress(
     val failed: Boolean,
     val progress: Float?,
     val label: String,
+)
+
+data class JobCelebration(
+    val id: String,
+    val title: String,
+    val detail: String,
 )
 
 fun kindLabel(kind: JobKind, phase: String): String {

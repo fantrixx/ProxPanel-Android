@@ -5,9 +5,12 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -23,6 +26,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.OpenInBrowser
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.PowerSettingsNew
@@ -36,20 +41,22 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -59,10 +66,15 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.res.stringResource
+import com.proxpanel.app.R
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.proxpanel.app.data.MediaItem
@@ -71,13 +83,14 @@ import com.proxpanel.app.ui.backups.backupFormatLabel
 import com.proxpanel.app.ui.backups.backupLocation
 import com.proxpanel.app.ui.backups.formatBackupSize
 import com.proxpanel.app.ui.backups.formatBackupTime
-import com.proxpanel.app.ui.components.BackupRunningBanner
+import com.proxpanel.app.ui.components.GuestBackupProgressBlock
+import com.proxpanel.app.ui.components.GuestLogo
 import com.proxpanel.app.ui.components.KindChip
+import com.proxpanel.app.ui.guests.GuestIconPicker
 import com.proxpanel.app.ui.components.MetricBar
 import com.proxpanel.app.ui.components.ProxCard
 import com.proxpanel.app.ui.components.ProxTopBar
-import com.proxpanel.app.ui.components.SectionLabel
-import com.proxpanel.app.ui.components.StatusDot
+import com.proxpanel.app.ui.components.StatusBadge
 import com.proxpanel.app.ui.theme.ProxBad
 import com.proxpanel.app.ui.theme.ProxGood
 import com.proxpanel.app.ui.theme.ProxSpace
@@ -96,10 +109,29 @@ fun GuestDetailScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
     val context = LocalContext.current
+    var iconPickerOpen by remember { mutableStateOf(false) }
+
+    if (iconPickerOpen) {
+        GuestIconPicker(
+            guest = state.guest,
+            current = state.guestIcon,
+            onDismiss = { iconPickerOpen = false },
+            onSave = { record ->
+                viewModel.setGuestIcon(record)
+                iconPickerOpen = false
+            },
+        )
+    }
 
     LaunchedEffect(state.message, state.error) {
-        state.message?.let { snackbar.showSnackbar(it) }
-        state.error?.let { snackbar.showSnackbar(it) }
+        state.message?.let {
+            snackbar.showSnackbar(it)
+            viewModel.clearMessage()
+        }
+        state.error?.let {
+            snackbar.showSnackbar(it)
+            viewModel.clearMessage()
+        }
     }
 
     state.confirm?.let { confirm ->
@@ -118,7 +150,7 @@ fun GuestDetailScreen(
                 ) { Text(confirm.confirm) }
             },
             dismissButton = {
-                TextButton(onClick = viewModel::dismissConfirm) { Text("Abbrechen") }
+                TextButton(onClick = viewModel::dismissConfirm) { Text(stringResource(R.string.action_cancel)) }
             },
             shape = MaterialTheme.shapes.large,
         )
@@ -133,14 +165,14 @@ fun GuestDetailScreen(
                 subtitle = "${state.guest.node} · ${state.guest.vmid}",
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Zurück")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back))
                     }
                 },
                 actions = {
                     IconButton(onClick = {
                         context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(viewModel.consoleUrl())))
                     }) {
-                        Icon(Icons.Default.OpenInBrowser, contentDescription = "Console")
+                        Icon(Icons.Default.OpenInBrowser, contentDescription = stringResource(R.string.cd_console))
                     }
                 },
             )
@@ -152,46 +184,68 @@ fun GuestDetailScreen(
                 .fillMaxSize()
                 .padding(padding),
         ) {
-            ScrollableTabRow(
-                selectedTabIndex = state.tab.ordinal,
-                edgePadding = ProxSpace.screen,
-                containerColor = MaterialTheme.colorScheme.background,
-                contentColor = MaterialTheme.colorScheme.primary,
-                divider = {},
-            ) {
-                DetailTab.entries.forEach { tab ->
-                    Tab(
-                        selected = state.tab == tab,
-                        onClick = { viewModel.setTab(tab) },
-                        text = {
-                            Text(
-                                when (tab) {
-                                    DetailTab.Overview -> "Overview"
-                                    DetailTab.Snapshots -> "Snapshots"
-                                    DetailTab.Backups -> "Backups"
-                                    DetailTab.Resources -> "Resources"
-                                },
-                            )
-                        },
-                    )
-                }
-            }
+            DetailTabBar(
+                selected = state.tab,
+                onSelect = viewModel::setTab,
+            )
 
             Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .verticalScroll(rememberScrollState())
-                    .padding(ProxSpace.screen),
+                    .padding(horizontal = ProxSpace.screen)
+                    .padding(top = ProxSpace.md, bottom = ProxSpace.xxl),
                 verticalArrangement = Arrangement.spacedBy(ProxSpace.md),
             ) {
                 when (state.tab) {
-                    DetailTab.Overview -> OverviewTab(state, viewModel, context)
+                    DetailTab.Overview -> OverviewTab(
+                        state,
+                        viewModel,
+                        context,
+                        onChangeLogo = { iconPickerOpen = true },
+                    )
                     DetailTab.Snapshots -> SnapshotsTab(state, viewModel)
                     DetailTab.Backups -> BackupsTab(state, viewModel)
                     DetailTab.Resources -> ResourcesTab(state, viewModel)
                 }
-                Spacer(Modifier.height(ProxSpace.xxl))
             }
+        }
+    }
+}
+
+@Composable
+private fun DetailTabBar(
+    selected: DetailTab,
+    onSelect: (DetailTab) -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
+            .padding(horizontal = ProxSpace.screen, vertical = ProxSpace.sm),
+        horizontalArrangement = Arrangement.spacedBy(ProxSpace.sm),
+    ) {
+        DetailTab.entries.forEach { tab ->
+            val isSelected = selected == tab
+            FilterChip(
+                selected = isSelected,
+                onClick = { onSelect(tab) },
+                label = {
+                    Text(
+                        when (tab) {
+                            DetailTab.Overview -> stringResource(R.string.tab_overview)
+                            DetailTab.Snapshots -> stringResource(R.string.tab_snapshots)
+                            DetailTab.Backups -> stringResource(R.string.tab_backups)
+                            DetailTab.Resources -> stringResource(R.string.tab_resources)
+                        },
+                    )
+                },
+                shape = MaterialTheme.shapes.small,
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.18f),
+                    selectedLabelColor = MaterialTheme.colorScheme.primary,
+                ),
+            )
         }
     }
 }
@@ -201,14 +255,28 @@ private fun OverviewTab(
     state: DetailUiState,
     viewModel: GuestDetailViewModel,
     context: Context,
+    onChangeLogo: () -> Unit,
 ) {
     ProxCard {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            StatusDot(running = state.guest.isRunning, locked = !state.guest.lock.isNullOrBlank())
+            GuestLogo(
+                name = state.guest.name,
+                tags = state.guest.tags,
+                record = state.guestIcon,
+                type = state.guest.type,
+                size = 52.dp,
+                onClick = onChangeLogo,
+            )
+            Spacer(Modifier.width(ProxSpace.md))
+            StatusBadge(
+                status = state.guest.status,
+                qmpstatus = state.guest.qmpstatus,
+                lock = state.guest.lock,
+            )
             Spacer(Modifier.width(ProxSpace.md))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    "${state.guest.status.replaceFirstChar { it.uppercase() }} · Up ${formatUptime(state.guest.uptime)}",
+                    text = stringResource(R.string.uptime_prefix, formatUptime(state.guest.uptime)),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -217,65 +285,75 @@ private fun OverviewTab(
         }
     }
 
-    SectionLabel("Resources")
-    ProxCard {
+    DetailSection(stringResource(R.string.section_resources)) {
         if (state.loading && state.detail == null) {
-            CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
+            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(modifier = Modifier.size(28.dp), strokeWidth = 3.dp)
+            }
         } else {
-            MetricBar("CPU", formatPct(state.guest.cpu), cpuPct(state.guest.cpu))
+            MetricBar(stringResource(R.string.metric_cpu), formatPct(state.guest.cpu), cpuPct(state.guest.cpu))
             Spacer(Modifier.height(ProxSpace.md))
             MetricBar(
-                "RAM",
+                stringResource(R.string.metric_ram),
                 "${formatBytes(state.guest.mem)} / ${formatBytes(state.guest.maxmem)}",
                 usagePct(state.guest.mem, state.guest.maxmem),
             )
             Spacer(Modifier.height(ProxSpace.md))
             MetricBar(
-                "Disk",
+                stringResource(R.string.metric_disk),
                 "${formatBytes(state.guest.disk)} / ${formatBytes(state.guest.maxdisk)}",
                 usagePct(state.guest.disk, state.guest.maxdisk),
             )
         }
     }
 
-    SectionLabel("Network")
-    ProxCard {
+    DetailSection(stringResource(R.string.section_network)) {
         val ips = state.guest.ips
         if (ips.isEmpty()) {
-            Text("Keine IP erkannt", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(stringResource(R.string.no_ip_detected), color = MaterialTheme.colorScheme.onSurfaceVariant)
         } else {
-            ips.forEach { ip ->
+            ips.forEachIndexed { index, ip ->
+                if (index > 0) Spacer(Modifier.height(ProxSpace.sm))
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(MaterialTheme.shapes.small)
+                        .background(MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.55f))
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
                 ) {
-                    Text(ip, modifier = Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        text = ip,
+                        modifier = Modifier.weight(1f),
+                        style = MaterialTheme.typography.titleSmall,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                     IconButton(onClick = { copyText(context, ip) }) {
-                        Icon(Icons.Default.ContentCopy, contentDescription = "Copy")
+                        Icon(Icons.Default.ContentCopy, contentDescription = stringResource(R.string.action_copy))
                     }
                     IconButton(onClick = { openHttp(context, ip) }) {
-                        Icon(Icons.Default.OpenInBrowser, contentDescription = "Open")
+                        Icon(Icons.Default.OpenInBrowser, contentDescription = stringResource(R.string.action_open))
                     }
                 }
             }
         }
     }
 
-    SectionLabel("Aktionen")
-    val enabled = !state.busy && !state.backupRunning
-    var backupMenuOpen by remember { mutableStateOf(false) }
-    val storages = state.backupStorages.map { it.storage }.distinct()
+    DetailSection(stringResource(R.string.section_actions)) {
+        val enabled = !state.busy && !state.backupRunning
+        var backupMenuOpen by remember { mutableStateOf(false) }
+        val storages = state.backupStorages.map { it.storage }.distinct()
 
-    ProxCard {
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceEvenly,
+            horizontalArrangement = Arrangement.spacedBy(ProxSpace.sm, Alignment.CenterHorizontally),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             if (!state.guest.isRunning) {
                 DetailActionIcon(
                     icon = Icons.Default.PlayArrow,
-                    contentDescription = "Start",
+                    contentDescription = stringResource(R.string.power_start),
                     enabled = enabled,
                     container = ProxGood.copy(alpha = 0.18f),
                     tint = ProxGood,
@@ -284,19 +362,19 @@ private fun OverviewTab(
             } else {
                 DetailActionIcon(
                     icon = Icons.Default.PowerSettingsNew,
-                    contentDescription = "Herunterfahren",
+                    contentDescription = stringResource(R.string.power_shutdown),
                     enabled = enabled,
                     onClick = { viewModel.requestAction("shutdown") },
                 )
                 DetailActionIcon(
                     icon = Icons.Default.RestartAlt,
-                    contentDescription = "Neustart",
+                    contentDescription = stringResource(R.string.power_reboot),
                     enabled = enabled,
                     onClick = { viewModel.requestAction("reboot") },
                 )
                 DetailActionIcon(
                     icon = Icons.Default.Stop,
-                    contentDescription = "Force Stop",
+                    contentDescription = stringResource(R.string.power_force_stop),
                     enabled = enabled,
                     tint = ProxBad,
                     onClick = { viewModel.requestAction("stop") },
@@ -305,7 +383,7 @@ private fun OverviewTab(
             Box {
                 DetailActionIcon(
                     icon = Icons.Default.CloudUpload,
-                    contentDescription = "Backup",
+                    contentDescription = stringResource(R.string.power_backup),
                     enabled = enabled && storages.isNotEmpty(),
                     tint = MaterialTheme.colorScheme.primary,
                     onClick = { backupMenuOpen = true },
@@ -328,8 +406,9 @@ private fun OverviewTab(
         }
         if (state.backupRunning) {
             Spacer(Modifier.height(ProxSpace.md))
-            BackupRunningBanner(
-                label = if (state.busy) "Backup wird gestartet…" else "Backup läuft…",
+            GuestBackupProgressBlock(
+                progress = null,
+                label = if (state.busy) stringResource(R.string.starting_ellipsis) else stringResource(R.string.backing_up_ellipsis),
             )
         }
     }
@@ -361,46 +440,64 @@ private fun DetailActionIcon(
 
 @Composable
 private fun SnapshotsTab(state: DetailUiState, viewModel: GuestDetailViewModel) {
-    SectionLabel("Neuer Snapshot")
-    ProxCard {
+    DetailSection(stringResource(R.string.snapshot_new_section)) {
         OutlinedTextField(
             value = state.newSnapName,
             onValueChange = viewModel::setSnapName,
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
-            placeholder = { Text("snap-name") },
+            placeholder = { Text(stringResource(R.string.snapshot_name_placeholder)) },
             shape = MaterialTheme.shapes.small,
             colors = fieldColors(),
         )
         Spacer(Modifier.height(ProxSpace.md))
         Button(
             onClick = viewModel::createSnapshot,
-            enabled = !state.busy,
-            modifier = Modifier.fillMaxWidth(),
+            enabled = !state.busy && state.newSnapName.isNotBlank(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(48.dp),
             shape = MaterialTheme.shapes.small,
-        ) { Text("Create") }
+        ) { Text(stringResource(R.string.snapshot_create)) }
     }
 
-    SectionLabel("Vorhanden")
-    if (state.snapshots.isEmpty()) {
-        Text("Keine Snapshots.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-    } else {
-        state.snapshots.forEach { snap ->
-            ProxCard {
-                Text(snap.name, style = MaterialTheme.typography.titleMedium)
-                if (!snap.description.isNullOrBlank()) {
-                    Text(snap.description, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                Row {
-                    TextButton(onClick = { viewModel.rollbackSnapshot(snap.name) }, enabled = !state.busy) {
-                        Text("Rollback")
+    DetailSection(stringResource(R.string.snapshot_existing_section)) {
+        if (state.snapshots.isEmpty()) {
+            EmptyHint(stringResource(R.string.snapshot_empty))
+        } else {
+            state.snapshots.forEachIndexed { index, snap ->
+                if (index > 0) Spacer(Modifier.height(ProxSpace.sm))
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(MaterialTheme.shapes.small)
+                        .background(MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.5f))
+                        .padding(ProxSpace.md),
+                ) {
+                    Text(snap.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                    if (!snap.description.isNullOrBlank()) {
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            snap.description,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
-                    TextButton(onClick = { viewModel.deleteSnapshot(snap.name) }, enabled = !state.busy) {
-                        Text("Delete", color = ProxBad)
+                    Spacer(Modifier.height(ProxSpace.sm))
+                    Row(horizontalArrangement = Arrangement.spacedBy(ProxSpace.sm)) {
+                        OutlinedButton(
+                            onClick = { viewModel.rollbackSnapshot(snap.name) },
+                            enabled = !state.busy,
+                            shape = MaterialTheme.shapes.small,
+                        ) { Text(stringResource(R.string.action_rollback)) }
+                        TextButton(
+                            onClick = { viewModel.deleteSnapshot(snap.name) },
+                            enabled = !state.busy,
+                            colors = ButtonDefaults.textButtonColors(contentColor = ProxBad),
+                        ) { Text(stringResource(R.string.action_delete)) }
                     }
                 }
             }
-            Spacer(Modifier.height(ProxSpace.sm))
         }
     }
 }
@@ -422,70 +519,68 @@ private fun BackupsTab(state: DetailUiState, viewModel: GuestDetailViewModel) {
         if (storage.isBlank() && storages.isNotEmpty()) storage = storages.first()
     }
 
-    SectionLabel("Backup starten")
-    ProxCard {
+    DetailSection(stringResource(R.string.backup_start_section)) {
         if (state.backupRunning) {
-            BackupRunningBanner(
-                label = if (state.busy) "Backup wird gestartet…" else "Backup läuft…",
+            GuestBackupProgressBlock(
+                progress = null,
+                label = if (state.busy) stringResource(R.string.starting_ellipsis) else stringResource(R.string.backing_up_ellipsis),
             )
             Spacer(Modifier.height(ProxSpace.md))
         }
-        BackupOptionChips("Storage", storages, storage) { storage = it }
-        Spacer(Modifier.height(ProxSpace.sm))
-        BackupOptionChips("Mode", listOf("snapshot", "suspend", "stop"), mode) { mode = it }
-        Spacer(Modifier.height(ProxSpace.sm))
-        BackupOptionChips("Compress", listOf("zstd", "gzip", "lzo", "none"), compress) {
-            compress = it
-        }
+        StorageDropdown(
+            value = storage,
+            options = storages,
+            enabled = !state.busy && !state.backupRunning,
+            onSelect = { storage = it },
+        )
         Spacer(Modifier.height(ProxSpace.md))
-        OutlinedButton(
+        BackupOptionRow(
+            label = stringResource(R.string.backup_mode_label),
+            options = listOf("snapshot", "suspend", "stop"),
+            selected = mode,
+            onSelect = { mode = it },
+        )
+        Spacer(Modifier.height(ProxSpace.md))
+        BackupOptionRow(
+            label = stringResource(R.string.backup_compress_label),
+            options = listOf("zstd", "gzip", "lzo", "none"),
+            selected = compress,
+            onSelect = { compress = it },
+        )
+        Spacer(Modifier.height(ProxSpace.lg))
+        Button(
             onClick = { viewModel.startBackup(storage, mode, compress) },
             enabled = !state.busy && !state.backupRunning && storage.isNotBlank(),
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(48.dp),
             shape = MaterialTheme.shapes.small,
         ) {
+            Icon(Icons.Default.CloudUpload, contentDescription = null, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(8.dp))
             Text(
                 when {
-                    state.busy -> "Starting…"
-                    state.backupRunning -> "Läuft…"
-                    else -> "Backup starten"
+                    state.busy -> stringResource(R.string.starting_ellipsis)
+                    state.backupRunning -> stringResource(R.string.running_ellipsis)
+                    else -> stringResource(R.string.backup_start_button)
                 },
             )
         }
     }
 
-    SectionLabel("Vorhanden")
-    if (state.backups.isEmpty()) {
-        Text("Keine Backups.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-    } else {
-        state.backups.forEach { item ->
-            ProxCard {
-                Text(
-                    backupFileName(item.volid),
-                    style = MaterialTheme.typography.titleSmall,
+    DetailSection(stringResource(R.string.backup_existing_count, state.backups.size)) {
+        if (state.backups.isEmpty()) {
+            EmptyHint(stringResource(R.string.backup_empty))
+        } else {
+            state.backups.forEachIndexed { index, item ->
+                if (index > 0) Spacer(Modifier.height(ProxSpace.sm))
+                BackupItemCard(
+                    item = item,
+                    busy = state.busy,
+                    onRestore = { restoreItem = item },
+                    onDelete = { deleteItem = item },
                 )
-                Text(
-                    "${formatBackupTime(item.ctime)} · ${formatBackupSize(item.size)} · ${backupFormatLabel(item)}",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-                Text(
-                    backupLocation(item),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = MaterialTheme.typography.labelMedium,
-                )
-                Row {
-                    TextButton(
-                        onClick = { restoreItem = item },
-                        enabled = !state.busy,
-                    ) { Text("Restore") }
-                    TextButton(
-                        onClick = { deleteItem = item },
-                        enabled = !state.busy,
-                    ) { Text("Delete", color = ProxBad) }
-                }
             }
-            Spacer(Modifier.height(ProxSpace.sm))
         }
     }
 
@@ -495,15 +590,19 @@ private fun BackupsTab(state: DetailUiState, viewModel: GuestDetailViewModel) {
         var force by remember(item) { mutableStateOf(false) }
         AlertDialog(
             onDismissRequest = { restoreItem = null },
-            title = { Text("Backup wiederherstellen?") },
+            title = { Text(stringResource(R.string.confirm_restore_title)) },
             text = {
                 Column {
-                    Text(backupFileName(item.volid), style = MaterialTheme.typography.bodySmall)
+                    Text(
+                        backupFileName(item.volid),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                     Spacer(Modifier.height(ProxSpace.md))
                     OutlinedTextField(
                         value = targetVmid,
                         onValueChange = { targetVmid = it.filter { c -> c.isDigit() } },
-                        label = { Text("Ziel-VMID") },
+                        label = { Text(stringResource(R.string.target_vmid)) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         shape = MaterialTheme.shapes.small,
@@ -513,18 +612,15 @@ private fun BackupsTab(state: DetailUiState, viewModel: GuestDetailViewModel) {
                     OutlinedTextField(
                         value = restoreStorage,
                         onValueChange = { restoreStorage = it },
-                        label = { Text("Storage (optional)") },
+                        label = { Text(stringResource(R.string.storage_optional)) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         shape = MaterialTheme.shapes.small,
                         colors = fieldColors(),
                     )
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Checkbox(
-                            checked = force,
-                            onCheckedChange = { force = it },
-                        )
-                        Text("Force überschreiben")
+                        Checkbox(checked = force, onCheckedChange = { force = it })
+                        Text(stringResource(R.string.force_overwrite))
                     }
                 }
             },
@@ -540,10 +636,10 @@ private fun BackupsTab(state: DetailUiState, viewModel: GuestDetailViewModel) {
                         )
                         restoreItem = null
                     },
-                ) { Text("Restore") }
+                ) { Text(stringResource(R.string.action_restore)) }
             },
             dismissButton = {
-                TextButton(onClick = { restoreItem = null }) { Text("Abbrechen") }
+                TextButton(onClick = { restoreItem = null }) { Text(stringResource(R.string.action_cancel)) }
             },
             shape = MaterialTheme.shapes.large,
         )
@@ -552,18 +648,19 @@ private fun BackupsTab(state: DetailUiState, viewModel: GuestDetailViewModel) {
     deleteItem?.let { item ->
         AlertDialog(
             onDismissRequest = { deleteItem = null },
-            title = { Text("Backup löschen?") },
-            text = { Text("„${backupFileName(item.volid)}“ dauerhaft löschen?") },
+            title = { Text(stringResource(R.string.confirm_backup_delete_title)) },
+            text = { Text(stringResource(R.string.confirm_backup_delete_body, backupFileName(item.volid))) },
             confirmButton = {
                 TextButton(
                     onClick = {
                         viewModel.deleteBackup(item)
                         deleteItem = null
                     },
-                ) { Text("Löschen", color = ProxBad) }
+                    colors = ButtonDefaults.textButtonColors(contentColor = ProxBad),
+                ) { Text(stringResource(R.string.action_delete)) }
             },
             dismissButton = {
-                TextButton(onClick = { deleteItem = null }) { Text("Abbrechen") }
+                TextButton(onClick = { deleteItem = null }) { Text(stringResource(R.string.action_cancel)) }
             },
             shape = MaterialTheme.shapes.large,
         )
@@ -571,21 +668,165 @@ private fun BackupsTab(state: DetailUiState, viewModel: GuestDetailViewModel) {
 }
 
 @Composable
-private fun BackupOptionChips(
+private fun BackupItemCard(
+    item: MediaItem,
+    busy: Boolean,
+    onRestore: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(MaterialTheme.shapes.small)
+            .background(MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.5f))
+            .padding(ProxSpace.md),
+    ) {
+        Text(
+            text = backupFileName(item.volid),
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Spacer(Modifier.height(ProxSpace.sm))
+        MetaLine(stringResource(R.string.backup_meta_when), formatBackupTime(item.ctime))
+        MetaLine(stringResource(R.string.backup_meta_size), formatBackupSize(item.size))
+        MetaLine(stringResource(R.string.backup_meta_format), backupFormatLabel(item))
+        MetaLine(stringResource(R.string.backup_meta_location), backupLocation(item))
+        Spacer(Modifier.height(ProxSpace.md))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(ProxSpace.sm),
+        ) {
+            OutlinedButton(
+                onClick = onRestore,
+                enabled = !busy,
+                modifier = Modifier.weight(1f),
+                shape = MaterialTheme.shapes.small,
+            ) {
+                Icon(Icons.Default.History, contentDescription = null, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(6.dp))
+                Text(stringResource(R.string.action_restore))
+            }
+            OutlinedButton(
+                onClick = onDelete,
+                enabled = !busy,
+                modifier = Modifier.weight(1f),
+                shape = MaterialTheme.shapes.small,
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = ProxBad),
+            ) {
+                Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(6.dp))
+                Text(stringResource(R.string.action_delete))
+            }
+        }
+    }
+}
+
+@Composable
+private fun MetaLine(label: String, value: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.width(64.dp),
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodySmall,
+            fontWeight = FontWeight.Medium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun StorageDropdown(
+    value: String,
+    options: List<String>,
+    enabled: Boolean,
+    onSelect: (String) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { if (enabled && options.isNotEmpty()) expanded = it },
+    ) {
+        OutlinedTextField(
+            value = value.ifBlank { if (options.isEmpty()) stringResource(R.string.storage_none) else stringResource(R.string.storage_pick) },
+            onValueChange = {},
+            readOnly = true,
+            enabled = enabled && options.isNotEmpty(),
+            label = { Text(stringResource(R.string.storage_label)) },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .menuAnchor(MenuAnchorType.PrimaryNotEditable),
+            shape = MaterialTheme.shapes.small,
+            colors = fieldColors(),
+        )
+        ExposedDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+        ) {
+            options.forEach { opt ->
+                DropdownMenuItem(
+                    text = { Text(opt) },
+                    onClick = {
+                        expanded = false
+                        onSelect(opt)
+                    },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun BackupOptionRow(
     label: String,
     options: List<String>,
     selected: String,
     onSelect: (String) -> Unit,
 ) {
-    Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-    Spacer(Modifier.height(ProxSpace.xs))
-    Row(horizontalArrangement = Arrangement.spacedBy(ProxSpace.xs)) {
+    Text(
+        text = label,
+        style = MaterialTheme.typography.labelLarge,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    Spacer(Modifier.height(ProxSpace.sm))
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(ProxSpace.sm),
+    ) {
         options.forEach { opt ->
             FilterChip(
                 selected = selected == opt,
                 onClick = { onSelect(opt) },
                 label = { Text(opt) },
                 shape = MaterialTheme.shapes.small,
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.18f),
+                    selectedLabelColor = MaterialTheme.colorScheme.primary,
+                ),
+            )
+        }
+        if (options.isEmpty()) {
+            Text(
+                text = stringResource(R.string.no_options),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
     }
@@ -593,13 +834,12 @@ private fun BackupOptionChips(
 
 @Composable
 private fun ResourcesTab(state: DetailUiState, viewModel: GuestDetailViewModel) {
-    SectionLabel("CPU / Memory")
-    ProxCard {
+    DetailSection(stringResource(R.string.section_cpu_memory)) {
         OutlinedTextField(
             value = state.coresInput,
             onValueChange = viewModel::setCores,
             modifier = Modifier.fillMaxWidth(),
-            label = { Text("Cores") },
+            label = { Text(stringResource(R.string.field_cores)) },
             singleLine = true,
             shape = MaterialTheme.shapes.small,
             colors = fieldColors(),
@@ -609,7 +849,7 @@ private fun ResourcesTab(state: DetailUiState, viewModel: GuestDetailViewModel) 
             value = state.memoryInput,
             onValueChange = viewModel::setMemory,
             modifier = Modifier.fillMaxWidth(),
-            label = { Text("Memory (MiB)") },
+            label = { Text(stringResource(R.string.field_memory_mib)) },
             singleLine = true,
             shape = MaterialTheme.shapes.small,
             colors = fieldColors(),
@@ -620,7 +860,7 @@ private fun ResourcesTab(state: DetailUiState, viewModel: GuestDetailViewModel) 
                 value = state.swapInput,
                 onValueChange = viewModel::setSwap,
                 modifier = Modifier.fillMaxWidth(),
-                label = { Text("Swap (MiB)") },
+                label = { Text(stringResource(R.string.field_swap_mib)) },
                 singleLine = true,
                 shape = MaterialTheme.shapes.small,
                 colors = fieldColors(),
@@ -630,9 +870,46 @@ private fun ResourcesTab(state: DetailUiState, viewModel: GuestDetailViewModel) 
         Button(
             onClick = viewModel::saveResources,
             enabled = !state.busy,
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(48.dp),
             shape = MaterialTheme.shapes.small,
-        ) { Text("Speichern") }
+        ) { Text(stringResource(R.string.action_save)) }
+    }
+}
+
+@Composable
+private fun DetailSection(
+    title: String,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    ProxCard {
+        Text(
+            text = title.uppercase(),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Spacer(Modifier.height(ProxSpace.md))
+        content()
+    }
+}
+
+@Composable
+private fun EmptyHint(text: String) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(MaterialTheme.shapes.small)
+            .background(MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.4f))
+            .padding(vertical = ProxSpace.xl, horizontal = ProxSpace.md),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 
