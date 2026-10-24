@@ -16,5 +16,8 @@ jobs:
           java-version: 17
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          # Default still requests obsolete `tools`, which sdkmanager no longer provides.
+          packages: platform-tools
       - name: Build debug APK
         run: ./gradlew :app:assembleDebug --no-daemon

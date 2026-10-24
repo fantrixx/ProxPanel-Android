@@ -13,12 +13,16 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.outlined.Inventory2
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
@@ -47,14 +51,17 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.res.stringResource
-import com.proxpanel.app.R
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.proxpanel.app.R
 import com.proxpanel.app.data.BackupOverviewGuest
 import com.proxpanel.app.data.MediaItem
+import com.proxpanel.app.data.NodesViewMode
+import com.proxpanel.app.ui.components.AppearanceDialog
 import com.proxpanel.app.ui.components.BackupRunningBanner
 import com.proxpanel.app.ui.components.KindChip
 import com.proxpanel.app.ui.components.ProxCard
@@ -65,6 +72,7 @@ import com.proxpanel.app.ui.components.ProxSearchBar
 import com.proxpanel.app.ui.components.ProxTopBar
 import com.proxpanel.app.ui.theme.ProxBad
 import com.proxpanel.app.ui.theme.ProxSpace
+import com.proxpanel.app.ui.util.rememberAppHaptics
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -72,8 +80,10 @@ import kotlinx.coroutines.launch
 fun BackupsScreen(viewModel: BackupsViewModel) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
+    val haptics = rememberAppHaptics()
     var detailsGuest by remember { mutableStateOf<BackupOverviewGuest?>(null) }
     var startGuest by remember { mutableStateOf<BackupOverviewGuest?>(null) }
+    var appearanceOpen by remember { mutableStateOf(false) }
 
     LaunchedEffect(state.message, state.error) {
         state.message?.let {
@@ -101,6 +111,17 @@ fun BackupsScreen(viewModel: BackupsViewModel) {
         }
     }
 
+    if (appearanceOpen) {
+        AppearanceDialog(
+            viewMode = state.viewMode,
+            onViewMode = {
+                haptics.tick()
+                viewModel.setViewMode(it)
+            },
+            onDismiss = { appearanceOpen = false },
+        )
+    }
+
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
@@ -114,6 +135,9 @@ fun BackupsScreen(viewModel: BackupsViewModel) {
                 },
                 embeddedInShell = true,
                 actions = {
+                    IconButton(onClick = { appearanceOpen = true }) {
+                        Icon(Icons.Default.Tune, contentDescription = stringResource(R.string.cd_view_options))
+                    }
                     IconButton(onClick = { viewModel.refresh() }) {
                         Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.action_refresh))
                     }
@@ -145,19 +169,60 @@ fun BackupsScreen(viewModel: BackupsViewModel) {
                         icon = Icons.Outlined.Inventory2,
                     )
                     else -> {
-                        LazyColumn(
-                            contentPadding = ProxListPadding,
-                            verticalArrangement = Arrangement.spacedBy(ProxSpace.listGap),
-                        ) {
-                            items(filtered, key = { "${it.type}-${it.node}-${it.vmid}" }) { guest ->
-                                val key = BackupsViewModel.guestKey(guest.node, guest.vmid)
-                                BackupCard(
-                                    guest = guest,
-                                    running = key in state.runningKeys,
-                                    starting = state.busyKey == key,
-                                    onOpenDetails = { detailsGuest = guest },
-                                    onBackupNow = { startGuest = guest },
-                                )
+                        when (state.viewMode) {
+                            NodesViewMode.Cards -> {
+                                LazyColumn(
+                                    contentPadding = ProxListPadding,
+                                    verticalArrangement = Arrangement.spacedBy(ProxSpace.listGap),
+                                ) {
+                                    items(filtered, key = { "${it.type}-${it.node}-${it.vmid}" }) { guest ->
+                                        val key = BackupsViewModel.guestKey(guest.node, guest.vmid)
+                                        BackupCard(
+                                            guest = guest,
+                                            running = key in state.runningKeys,
+                                            starting = state.busyKey == key,
+                                            onOpenDetails = { detailsGuest = guest },
+                                            onBackupNow = { startGuest = guest },
+                                        )
+                                    }
+                                }
+                            }
+                            NodesViewMode.Grid -> {
+                                LazyVerticalGrid(
+                                    columns = GridCells.Fixed(2),
+                                    contentPadding = ProxListPadding,
+                                    verticalArrangement = Arrangement.spacedBy(ProxSpace.listGap),
+                                    horizontalArrangement = Arrangement.spacedBy(ProxSpace.listGap),
+                                    modifier = Modifier.fillMaxSize(),
+                                ) {
+                                    gridItems(filtered, key = { "${it.type}-${it.node}-${it.vmid}" }) { guest ->
+                                        val key = BackupsViewModel.guestKey(guest.node, guest.vmid)
+                                        BackupTile(
+                                            guest = guest,
+                                            running = key in state.runningKeys,
+                                            starting = state.busyKey == key,
+                                            onOpenDetails = { detailsGuest = guest },
+                                            onBackupNow = { startGuest = guest },
+                                        )
+                                    }
+                                }
+                            }
+                            NodesViewMode.Compact -> {
+                                LazyColumn(
+                                    contentPadding = ProxListPadding,
+                                    verticalArrangement = Arrangement.spacedBy(ProxSpace.sm),
+                                ) {
+                                    items(filtered, key = { "${it.type}-${it.node}-${it.vmid}" }) { guest ->
+                                        val key = BackupsViewModel.guestKey(guest.node, guest.vmid)
+                                        BackupCompactRow(
+                                            guest = guest,
+                                            running = key in state.runningKeys,
+                                            starting = state.busyKey == key,
+                                            onOpenDetails = { detailsGuest = guest },
+                                            onBackupNow = { startGuest = guest },
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
@@ -253,6 +318,132 @@ private fun BackupCard(
             Icon(Icons.Default.CloudUpload, contentDescription = null)
             Spacer(Modifier.width(ProxSpace.sm))
             Text(if (running) stringResource(R.string.running_ellipsis) else stringResource(R.string.backup_now))
+        }
+    }
+}
+
+@Composable
+private fun BackupTile(
+    guest: BackupOverviewGuest,
+    running: Boolean,
+    starting: Boolean,
+    onOpenDetails: () -> Unit,
+    onBackupNow: () -> Unit,
+) {
+    val kindLabel = if (guest.type == "lxc") "CT" else "VM"
+    val last = guest.lastBackup
+    ProxCard {
+        Column(modifier = Modifier.clickable(onClick = onOpenDetails)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    guest.name,
+                    style = MaterialTheme.typography.titleSmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+                KindChip(text = kindLabel, kind = guest.type)
+            }
+            Spacer(Modifier.height(ProxSpace.xs))
+            Text(
+                "${guest.vmid} · ${guest.node}",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Spacer(Modifier.height(ProxSpace.sm))
+            Text(
+                formatBackupTime(last?.ctime),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                "${backupFormatLabel(last)} · ${formatBackupSize(last?.size)}",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        if (running) {
+            Spacer(Modifier.height(ProxSpace.sm))
+            BackupRunningBanner(
+                label = if (starting) stringResource(R.string.backup_starting) else stringResource(R.string.backup_running),
+            )
+        }
+        Spacer(Modifier.height(ProxSpace.sm))
+        OutlinedButton(
+            onClick = onBackupNow,
+            enabled = !running,
+            shape = MaterialTheme.shapes.small,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Icon(Icons.Default.CloudUpload, contentDescription = null)
+            Spacer(Modifier.width(ProxSpace.xs))
+            Text(stringResource(R.string.backup_now), maxLines = 1)
+        }
+    }
+}
+
+@Composable
+private fun BackupCompactRow(
+    guest: BackupOverviewGuest,
+    running: Boolean,
+    starting: Boolean,
+    onOpenDetails: () -> Unit,
+    onBackupNow: () -> Unit,
+) {
+    val kindLabel = if (guest.type == "lxc") "CT" else "VM"
+    val last = guest.lastBackup
+    ProxCard {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onOpenDetails),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        guest.name,
+                        style = MaterialTheme.typography.titleSmall,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
+                    Spacer(Modifier.width(ProxSpace.sm))
+                    KindChip(text = kindLabel, kind = guest.type)
+                }
+                Text(
+                    listOf(
+                        "${guest.vmid} · ${guest.node}",
+                        formatBackupTime(last?.ctime),
+                        if (running) {
+                            if (starting) stringResource(R.string.backup_starting) else stringResource(R.string.backup_running)
+                        } else {
+                            null
+                        },
+                    ).filterNotNull().joinToString(" · "),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            IconButton(onClick = onBackupNow, enabled = !running) {
+                Icon(
+                    Icons.Default.CloudUpload,
+                    contentDescription = stringResource(R.string.backup_now),
+                    tint = if (running) {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    } else {
+                        MaterialTheme.colorScheme.primary
+                    },
+                )
+            }
         }
     }
 }

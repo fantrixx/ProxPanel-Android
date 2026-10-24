@@ -15,11 +15,15 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.OpenInBrowser
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.outlined.Storefront
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -31,13 +35,20 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.stringResource
-import com.proxpanel.app.R
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.proxpanel.app.R
+import com.proxpanel.app.data.MarketplaceScript
+import com.proxpanel.app.data.NodesViewMode
+import com.proxpanel.app.ui.components.AppearanceDialog
 import com.proxpanel.app.ui.components.KindChip
 import com.proxpanel.app.ui.components.ProxCard
 import com.proxpanel.app.ui.components.ProxEmptyState
@@ -46,6 +57,7 @@ import com.proxpanel.app.ui.components.ProxLoadingState
 import com.proxpanel.app.ui.components.ProxSearchBar
 import com.proxpanel.app.ui.components.ProxTopBar
 import com.proxpanel.app.ui.theme.ProxSpace
+import com.proxpanel.app.ui.util.rememberAppHaptics
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -56,7 +68,20 @@ fun MarketplaceScreen(viewModel: MarketplaceViewModel) {
     val context = LocalContext.current
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    val haptics = rememberAppHaptics()
     val copiedMessage = stringResource(R.string.apps_snackbar_copied)
+    var appearanceOpen by remember { mutableStateOf(false) }
+
+    if (appearanceOpen) {
+        AppearanceDialog(
+            viewMode = state.viewMode,
+            onViewMode = {
+                haptics.tick()
+                viewModel.setViewMode(it)
+            },
+            onDismiss = { appearanceOpen = false },
+        )
+    }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -67,6 +92,9 @@ fun MarketplaceScreen(viewModel: MarketplaceViewModel) {
                 subtitle = stringResource(R.string.apps_subtitle),
                 embeddedInShell = true,
                 actions = {
+                    IconButton(onClick = { appearanceOpen = true }) {
+                        Icon(Icons.Default.Tune, contentDescription = stringResource(R.string.cd_view_options))
+                    }
                     IconButton(onClick = viewModel::refresh) {
                         Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.action_refresh))
                     }
@@ -101,54 +129,156 @@ fun MarketplaceScreen(viewModel: MarketplaceViewModel) {
                     icon = Icons.Outlined.Storefront,
                 )
                 else -> {
-                    LazyColumn(
-                        contentPadding = ProxListPadding,
-                        verticalArrangement = Arrangement.spacedBy(ProxSpace.listGap),
-                    ) {
-                        items(filtered, key = { it.slug }) { script ->
-                            ProxCard {
-                                Row(horizontalArrangement = Arrangement.spacedBy(ProxSpace.sm)) {
-                                    Text(
-                                        script.name,
-                                        style = MaterialTheme.typography.titleMedium,
-                                        modifier = Modifier.weight(1f),
-                                    )
-                                    KindChip(text = script.kind.uppercase(), kind = script.kind)
-                                }
-                                Spacer(Modifier.height(ProxSpace.sm))
-                                Text(
-                                    script.description.take(180),
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                                if (script.categories.isNotEmpty()) {
-                                    Spacer(Modifier.height(ProxSpace.xs))
-                                    Text(
-                                        script.categories.take(3).joinToString(" · "),
-                                        style = MaterialTheme.typography.labelMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    val onCopy: (MarketplaceScript) -> Unit = { script ->
+                        val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                        cm.setPrimaryClip(ClipData.newPlainText("install", script.command))
+                        scope.launch { snackbar.showSnackbar(copiedMessage) }
+                    }
+                    val onOpen: (MarketplaceScript) -> Unit = { script ->
+                        context.startActivity(
+                            Intent(Intent.ACTION_VIEW, Uri.parse(script.pageUrl)),
+                        )
+                    }
+                    when (state.viewMode) {
+                        NodesViewMode.Cards -> {
+                            LazyColumn(
+                                contentPadding = ProxListPadding,
+                                verticalArrangement = Arrangement.spacedBy(ProxSpace.listGap),
+                            ) {
+                                items(filtered, key = { it.slug }) { script ->
+                                    ScriptCard(
+                                        script = script,
+                                        dense = false,
+                                        onCopy = { onCopy(script) },
+                                        onOpen = { onOpen(script) },
                                     )
                                 }
-                                Row {
-                                    IconButton(onClick = {
-                                        val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                        cm.setPrimaryClip(ClipData.newPlainText("install", script.command))
-                                        scope.launch { snackbar.showSnackbar(copiedMessage) }
-                                    }) {
-                                        Icon(Icons.Default.ContentCopy, contentDescription = stringResource(R.string.action_copy))
-                                    }
-                                    IconButton(onClick = {
-                                        context.startActivity(
-                                            Intent(Intent.ACTION_VIEW, Uri.parse(script.pageUrl)),
-                                        )
-                                    }) {
-                                        Icon(Icons.Default.OpenInBrowser, contentDescription = stringResource(R.string.action_open))
-                                    }
+                            }
+                        }
+                        NodesViewMode.Grid -> {
+                            LazyVerticalGrid(
+                                columns = GridCells.Fixed(2),
+                                contentPadding = ProxListPadding,
+                                verticalArrangement = Arrangement.spacedBy(ProxSpace.listGap),
+                                horizontalArrangement = Arrangement.spacedBy(ProxSpace.listGap),
+                                modifier = Modifier.fillMaxSize(),
+                            ) {
+                                gridItems(filtered, key = { it.slug }) { script ->
+                                    ScriptCard(
+                                        script = script,
+                                        dense = true,
+                                        onCopy = { onCopy(script) },
+                                        onOpen = { onOpen(script) },
+                                    )
+                                }
+                            }
+                        }
+                        NodesViewMode.Compact -> {
+                            LazyColumn(
+                                contentPadding = ProxListPadding,
+                                verticalArrangement = Arrangement.spacedBy(ProxSpace.sm),
+                            ) {
+                                items(filtered, key = { it.slug }) { script ->
+                                    ScriptCompactRow(
+                                        script = script,
+                                        onCopy = { onCopy(script) },
+                                        onOpen = { onOpen(script) },
+                                    )
                                 }
                             }
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ScriptCard(
+    script: MarketplaceScript,
+    dense: Boolean,
+    onCopy: () -> Unit,
+    onOpen: () -> Unit,
+) {
+    ProxCard {
+        Row(horizontalArrangement = Arrangement.spacedBy(ProxSpace.sm)) {
+            Text(
+                script.name,
+                style = if (dense) MaterialTheme.typography.titleSmall else MaterialTheme.typography.titleMedium,
+                maxLines = if (dense) 2 else 3,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            KindChip(text = script.kind.uppercase(), kind = script.kind)
+        }
+        Spacer(Modifier.height(ProxSpace.sm))
+        Text(
+            script.description.take(if (dense) 100 else 180),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = if (dense) 3 else 4,
+            overflow = TextOverflow.Ellipsis,
+        )
+        if (script.categories.isNotEmpty()) {
+            Spacer(Modifier.height(ProxSpace.xs))
+            Text(
+                script.categories.take(3).joinToString(" · "),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        Row {
+            IconButton(onClick = onCopy) {
+                Icon(Icons.Default.ContentCopy, contentDescription = stringResource(R.string.action_copy))
+            }
+            IconButton(onClick = onOpen) {
+                Icon(Icons.Default.OpenInBrowser, contentDescription = stringResource(R.string.action_open))
+            }
+        }
+    }
+}
+
+@Composable
+private fun ScriptCompactRow(
+    script: MarketplaceScript,
+    onCopy: () -> Unit,
+    onOpen: () -> Unit,
+) {
+    ProxCard {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(ProxSpace.sm),
+                ) {
+                    Text(
+                        script.name,
+                        style = MaterialTheme.typography.titleSmall,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
+                    KindChip(text = script.kind.uppercase(), kind = script.kind)
+                }
+                Text(
+                    script.description.take(90),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            IconButton(onClick = onCopy) {
+                Icon(Icons.Default.ContentCopy, contentDescription = stringResource(R.string.action_copy))
+            }
+            IconButton(onClick = onOpen) {
+                Icon(Icons.Default.OpenInBrowser, contentDescription = stringResource(R.string.action_open))
             }
         }
     }

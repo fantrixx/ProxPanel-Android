@@ -5,6 +5,8 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.proxpanel.app.R
 import com.proxpanel.app.data.MarketplaceScript
+import com.proxpanel.app.data.NodesViewMode
+import com.proxpanel.app.data.PrefsStore
 import com.proxpanel.app.util.L10n
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -29,12 +31,14 @@ import java.util.concurrent.TimeUnit
 data class MarketplaceUiState(
     val scripts: List<MarketplaceScript> = emptyList(),
     val query: String = "",
+    val viewMode: NodesViewMode = NodesViewMode.Cards,
     val loading: Boolean = true,
     val error: String? = null,
 )
 
 class MarketplaceViewModel(
     private val l10n: L10n,
+    private val prefsStore: PrefsStore,
 ) : ViewModel() {
     private val _state = MutableStateFlow(MarketplaceUiState())
     val state: StateFlow<MarketplaceUiState> = _state.asStateFlow()
@@ -46,7 +50,16 @@ class MarketplaceViewModel(
         .build()
 
     init {
+        viewModelScope.launch {
+            prefsStore.nodesViewMode.collect { mode ->
+                _state.update { it.copy(viewMode = mode) }
+            }
+        }
         refresh()
+    }
+
+    fun setViewMode(mode: NodesViewMode) {
+        viewModelScope.launch { prefsStore.setNodesViewMode(mode) }
     }
 
     fun setQuery(query: String) = _state.update { it.copy(query = query) }
@@ -205,9 +218,10 @@ class MarketplaceViewModel(
     }
 
     companion object {
-        fun factory(l10n: L10n) = object : ViewModelProvider.Factory {
+        fun factory(l10n: L10n, prefsStore: PrefsStore) = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
-            override fun <T : ViewModel> create(modelClass: Class<T>): T = MarketplaceViewModel(l10n) as T
+            override fun <T : ViewModel> create(modelClass: Class<T>): T =
+                MarketplaceViewModel(l10n, prefsStore) as T
         }
     }
 }
