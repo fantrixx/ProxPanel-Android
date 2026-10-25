@@ -16,6 +16,9 @@
     <string name="action_open">Open</string>
     <string name="action_dismiss">Dismiss</string>
     <string name="action_rollback">Rollback</string>
+    <string name="action_migrate">Migrate</string>
+    <string name="action_clone">Clone</string>
+    <string name="action_to_template">Convert to template</string>
     <string name="loading_default">Loading…</string>
     <string name="empty_no_results">No results</string>
     <string name="empty_dash">—</string>
@@ -57,6 +60,18 @@
     <string name="cd_unpin">Unpin</string>
     <string name="cd_console">Console</string>
     <string name="cd_clear_search">Clear search</string>
+    <string name="cd_view_info">About this screen</string>
+
+    <!-- Screen help (inline info) -->
+    <string name="info_guests">Overview of all VMs and containers in your cluster.\n\nThe cluster dashboard at the top shows node health, storage, HA, and recent tasks/jobs. Filter by status or type, search by name, pin favorites, and start, stop, or reboot from the list. Long-press a guest for quick actions, or tap to open details. Change logos via the icon picker. Pull down to refresh; live metrics pause while you scroll.</string>
+    <string name="info_backups">See scheduled Proxmox backup jobs at the top, then the latest backup for each guest.\n\nTap a guest for backup history, restore options, and volume management. You can delete old backup volumes to free space. Running backup jobs appear under the title.</string>
+    <string name="info_storage">Browse nodes and storage pools with used and free space.\n\nCheck content types (images, backups, ISOs, snippets), online status, and capacity across the cluster. Use search to find a pool quickly. Pull down to refresh.</string>
+    <string name="info_tasks">Recent Proxmox tasks such as backups, power actions, migrations, and creates.\n\nExpand a row for the live task log and status. Failed or running jobs are easy to spot. Pull down to refresh the list.</string>
+    <string name="info_media">ISO images and LXC templates available on your storages.\n\nSwitch between ISOs and templates, search by name, and see which storage holds each file. Use these when creating a new VM or container.</string>
+    <string name="info_apps">Community helper scripts for common apps (Docker, Home Assistant, and more).\n\nSort by most popular or A–Z, search the catalog, then copy the install command to run on your Proxmox host—or open the project page in the browser. Install counts come from public community telemetry.</string>
+    <string name="info_settings">App preferences for this device.\n\nSet the auto-refresh interval and accent color, and read the privacy notice. Credentials stay on the device. Sign out from the Overview screen.</string>
+    <string name="info_create">Create a new VM or LXC on a chosen node.\n\nPick CPU, memory, disk, storage, network, and optionally an ISO or template. Review the summary before confirming—the create task then appears under Tasks and in the job banner.</string>
+    <string name="info_detail">Control this guest: power, resources, network, snapshots, and backups.\n\nOpen the console, change the logo, watch live CPU/memory charts, and manage disks. Resource edits apply on the node; power actions show up as jobs under the title.</string>
 
     <!-- Nav -->
     <string name="nav_overview">Overview</string>
@@ -135,9 +150,17 @@
     <string name="toast_snapshot_deleted">Snapshot deleted</string>
     <string name="toast_rollback_started">Rollback started</string>
     <string name="toast_resources_saved">Resources saved</string>
+    <string name="toast_meta_saved">Tags and notes saved</string>
+    <string name="toast_migrate_started">Migration started</string>
+    <string name="toast_clone_started">Clone started</string>
+    <string name="toast_template_created">Converted to template</string>
     <string name="toast_action_requested">%1$s requested</string>
     <string name="toast_create_started">%1$s %2$d is being created</string>
     <string name="error_action_failed">Action failed</string>
+    <string name="error_migrate_failed">Migration failed</string>
+    <string name="error_migrate_target">Pick a different target node</string>
+    <string name="error_clone_failed">Clone failed</string>
+    <string name="error_template_must_stop">Stop the guest before converting to a template</string>
     <string name="error_backup_failed">Backup failed</string>
     <string name="error_load_failed">Failed to load</string>
     <string name="error_load_guest_failed">Failed to load guest</string>
@@ -163,7 +186,59 @@
     <string name="tab_resources">Resources</string>
     <string name="section_resources">Resources</string>
     <string name="section_network">Network</string>
+    <string name="section_meta">Tags &amp; notes</string>
     <string name="section_actions">Actions</string>
+    <string name="detail_field_tags">Tags</string>
+    <string name="detail_tags_hint">tag1;tag2</string>
+    <string name="detail_field_notes">Notes</string>
+    <string name="migrate_title">Migrate guest</string>
+    <string name="migrate_target_node">Target node</string>
+    <string name="migrate_online">Live migration</string>
+    <string name="migrate_with_disks">Include local disks</string>
+    <string name="clone_title">Clone guest</string>
+    <string name="clone_new_vmid">New VMID</string>
+    <string name="clone_name">Name</string>
+    <string name="clone_target_node">Target node</string>
+    <string name="clone_full_copy">Full copy</string>
+    <string name="confirm_template_title">Convert to template?</string>
+    <string name="confirm_template_body">“%1$s” will become a template. This cannot be undone from the app.</string>
+    <string name="ha_badge">HA · %1$s</string>
+    <string name="cluster_ha">HA</string>
+    <string name="backups_schedules_title">Scheduled backups</string>
+    <string name="backups_schedules_subtitle">Automatic jobs from Proxmox (Datacenter → Backup). Below: last backup per guest.</string>
+    <string name="backups_guests_section">Guests</string>
+    <string name="backups_schedule_active">Active</string>
+    <string name="backups_schedule_disabled">Disabled</string>
+    <string name="backups_schedule_selection">VMs: %1$s</string>
+    <string name="backups_schedule_unknown_when">No schedule set</string>
+    <string name="backups_schedule_daily">Every day at %1$s</string>
+    <string name="backups_schedule_on_day">Every %1$s at %2$s</string>
+    <string name="backups_schedule_range">%1$s–%2$s at %3$s</string>
+    <string name="backups_schedule_all_guests">All guests</string>
+    <string name="backups_schedule_pool">Pool “%1$s”</string>
+    <string name="backups_schedule_selection_unknown">No guests selected</string>
+    <string name="backups_schedule_guests_named">%1$s</string>
+    <string name="backups_schedule_guests_count">%1$d guests (%2$s…)</string>
+    <string name="backups_schedule_on_node">Node %1$s</string>
+    <string name="backups_schedule_label_what">What</string>
+    <string name="backups_schedule_label_where">Where</string>
+    <string name="backups_schedule_label_how">How</string>
+    <string name="backups_schedule_label_notes">Notes</string>
+    <string name="backups_mode_snapshot">Snapshot</string>
+    <string name="backups_mode_suspend">Suspend</string>
+    <string name="backups_mode_stop">Stop</string>
+    <string name="dow_mon">Monday</string>
+    <string name="dow_tue">Tuesday</string>
+    <string name="dow_wed">Wednesday</string>
+    <string name="dow_thu">Thursday</string>
+    <string name="dow_fri">Friday</string>
+    <string name="dow_sat">Saturday</string>
+    <string name="dow_sun">Sunday</string>
+    <string name="login_saved_servers">Saved servers</string>
+    <string name="settings_servers_title">Servers</string>
+    <string name="settings_servers_subtitle">Switch between saved Proxmox hosts</string>
+    <string name="settings_server_active">Active</string>
+    <string name="settings_server_switch">Switch</string>
     <string name="no_ip_detected">No IP detected</string>
     <string name="snapshot_new_section">New snapshot</string>
     <string name="snapshot_name_placeholder">snap-name</string>
@@ -280,6 +355,9 @@
     <string name="apps_title">Apps</string>
     <string name="apps_subtitle">Community Scripts</string>
     <string name="apps_search_placeholder">Search scripts…</string>
+    <string name="apps_sort_popular">Most popular</string>
+    <string name="apps_sort_name">A–Z</string>
+    <string name="apps_installs">%1$s installs</string>
     <string name="apps_install_hint">Run the install command on the Proxmox host.</string>
     <string name="apps_loading_catalog">Loading catalog…</string>
     <string name="apps_empty">No scripts</string>
@@ -325,9 +403,15 @@
     <string name="privacy_body">ProxPanel stores login credentials and settings only locally on this device (encrypted or in app preferences).\n\nThe app connects directly to your Proxmox server. No server data is sent to us or to third parties.\n\nOptionally, marketplace scripts are loaded from public sources. That creates a network connection to the respective catalog host.\n\nYou can uninstall the app at any time to remove all local data.</string>
 
     <!-- Cluster bar -->
+    <string name="cluster_dashboard_title">Cluster</string>
     <string name="cluster_nodes">Nodes</string>
     <string name="cluster_running">Running</string>
     <string name="cluster_free">Free</string>
+    <string name="cluster_storage_used">Storage %1$s / %2$s</string>
+    <string name="cluster_node_offline">offline</string>
+    <string name="cluster_jobs">Jobs</string>
+    <string name="cluster_tasks_running">Tasks</string>
+    <string name="cluster_tasks_failed">Failed (24h)</string>
 
     <!-- Jobs -->
     <string name="jobs_open_tasks">Open Tasks</string>
@@ -338,6 +422,9 @@
     <string name="jobs_finished_one">1 job finished</string>
     <string name="jobs_finished_many">%1$d jobs finished</string>
     <string name="jobs_more">· +%1$d more</string>
+    <string name="jobs_expand">Expand job progress</string>
+    <string name="jobs_collapse">Collapse job progress</string>
+    <string name="jobs_hide_banner">Hide job progress</string>
     <string name="job_eta_left">~%1$s left</string>
     <string name="job_meta_in_progress">In progress · %1$s</string>
     <string name="job_meta_starting">Starting… · %1$s</string>

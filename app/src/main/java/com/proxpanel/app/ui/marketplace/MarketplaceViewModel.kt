@@ -28,9 +28,15 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.util.concurrent.TimeUnit
 
+enum class MarketplaceSort {
+    Popular,
+    Name,
+}
+
 data class MarketplaceUiState(
     val scripts: List<MarketplaceScript> = emptyList(),
     val query: String = "",
+    val sort: MarketplaceSort = MarketplaceSort.Popular,
     val viewMode: NodesViewMode = NodesViewMode.Cards,
     val loading: Boolean = true,
     val error: String? = null,
@@ -64,15 +70,27 @@ class MarketplaceViewModel(
 
     fun setQuery(query: String) = _state.update { it.copy(query = query) }
 
+    fun setSort(sort: MarketplaceSort) = _state.update { it.copy(sort = sort) }
+
     fun filtered(): List<MarketplaceScript> {
         val q = _state.value.query.trim().lowercase()
-        val all = _state.value.scripts
-        if (q.isEmpty()) return all
-        return all.filter {
-            it.name.lowercase().contains(q) ||
-                it.description.lowercase().contains(q) ||
-                it.slug.contains(q) ||
-                it.categories.any { c -> c.lowercase().contains(q) }
+        val sort = _state.value.sort
+        val matched = if (q.isEmpty()) {
+            _state.value.scripts
+        } else {
+            _state.value.scripts.filter {
+                it.name.lowercase().contains(q) ||
+                    it.description.lowercase().contains(q) ||
+                    it.slug.contains(q) ||
+                    it.categories.any { c -> c.lowercase().contains(q) }
+            }
+        }
+        return when (sort) {
+            MarketplaceSort.Popular -> matched.sortedWith(
+                compareByDescending<MarketplaceScript> { it.installs }
+                    .thenBy { it.name.lowercase() },
+            )
+            MarketplaceSort.Name -> matched.sortedBy { it.name.lowercase() }
         }
     }
 
@@ -80,7 +98,12 @@ class MarketplaceViewModel(
         viewModelScope.launch {
             _state.update { it.copy(loading = true, error = null) }
             try {
-                val scripts = withContext(Dispatchers.IO) { fetchCatalog() }
+                val scripts = withContext(Dispatchers.IO) {
+                    val installs = fetchInstallCounts()
+                    fetchCatalog().map { script ->
+                        script.copy(installs = installs[script.slug] ?: 0)
+                    }
+                }
                 _state.update { it.copy(scripts = scripts, loading = false, error = null) }
             } catch (e: Exception) {
                 _state.update {
@@ -127,7 +150,38 @@ class MarketplaceViewModel(
             page++
             if (page > 30) break // safety
         }
-        return scripts.sortedBy { it.name.lowercase() }
+        return scripts
+    }
+
+    /** Anonymous install totals from community-scripts telemetry (`/api/scripts`). */
+    private fun fetchInstallCounts(): Map<String, Int> {
+        return try {
+            val url = "https://telemetry.community-scripts.org/api/scripts".toHttpUrl()
+                .newBuilder()
+                .addQueryParameter("days", "365")
+                .build()
+            val req = Request.Builder()
+                .url(url)
+                .header("Accept", "application/json")
+                .header("User-Agent", "ProxPanel-Android")
+                .build()
+            http.newCall(req).execute().use { response ->
+                if (!response.isSuccessful) return emptyMap()
+                val text = response.body?.string().orEmpty()
+                val root = json.parseToJsonElement(text).jsonObject
+                val list = root["top_scripts"]?.jsonArray ?: return emptyMap()
+                buildMap {
+                    list.forEach { el ->
+                        val obj = el as? JsonObject ?: return@forEach
+                        val app = obj.string("app")?.lowercase()?.takeIf { it.isNotBlank() } ?: return@forEach
+                        val total = obj["total"]?.jsonPrimitive?.contentOrNull?.toIntOrNull() ?: 0
+                        if (total > 0) put(app, total)
+                    }
+                }
+            }
+        } catch (_: Exception) {
+            emptyMap()
+        }
     }
 
     private fun mapScript(rec: JsonObject): MarketplaceScript? {

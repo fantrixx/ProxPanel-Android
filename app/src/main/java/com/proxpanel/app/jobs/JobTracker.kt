@@ -19,7 +19,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
-enum class JobKind { Backup, Restore, Create, Task }
+enum class JobKind { Backup, Restore, Create, Migrate, Clone, Task }
 
 data class ActiveJob(
     val id: String,
@@ -259,6 +259,69 @@ class JobTracker(
         toast(ToastKind.Ok, l10n.get(R.string.toast_create_started, kindLabel, vmid))
     }
 
+    suspend fun trackMigrate(
+        node: String,
+        type: String,
+        vmid: Int,
+        name: String?,
+        target: String,
+        online: Boolean,
+        withLocalDisks: Boolean = true,
+    ): OkResponse {
+        val label = name?.ifBlank { null } ?: l10n.get(R.string.guest_fallback_name, vmid)
+        val jobId = trackJob(
+            kind = JobKind.Migrate,
+            title = "Migrate · $label",
+            detail = "$node → $target",
+            node = node,
+            upid = "",
+            vmid = vmid.toString(),
+        )
+        return try {
+            val res = api.migrateGuest(node, type, vmid, target, online, withLocalDisks)
+            val upid = res.upid
+            if (!upid.isNullOrBlank()) attachJobUpid(jobId, upid)
+            toast(ToastKind.Ok, l10n.get(R.string.toast_migrate_started))
+            res
+        } catch (e: Exception) {
+            failJob(jobId, e.message ?: l10n.get(R.string.error_migrate_failed))
+            toast(ToastKind.Err, e.message ?: l10n.get(R.string.error_migrate_failed))
+            throw e
+        }
+    }
+
+    suspend fun trackClone(
+        node: String,
+        type: String,
+        vmid: Int,
+        name: String?,
+        newid: Int,
+        cloneName: String?,
+        target: String?,
+        full: Boolean,
+    ): OkResponse {
+        val label = name?.ifBlank { null } ?: l10n.get(R.string.guest_fallback_name, vmid)
+        val jobId = trackJob(
+            kind = JobKind.Clone,
+            title = "Clone · $label",
+            detail = "→ $newid" + (if (!target.isNullOrBlank()) " · $target" else ""),
+            node = node,
+            upid = "",
+            vmid = newid.toString(),
+        )
+        return try {
+            val res = api.cloneGuest(node, type, vmid, newid, cloneName, target, full)
+            val upid = res.upid
+            if (!upid.isNullOrBlank()) attachJobUpid(jobId, upid)
+            toast(ToastKind.Ok, l10n.get(R.string.toast_clone_started))
+            res
+        } catch (e: Exception) {
+            failJob(jobId, e.message ?: l10n.get(R.string.error_clone_failed))
+            toast(ToastKind.Err, e.message ?: l10n.get(R.string.error_clone_failed))
+            throw e
+        }
+    }
+
     private fun startPolling(id: String) {
         pollJobs[id]?.cancel()
         pollJobs[id] = scope.launch {
@@ -377,7 +440,9 @@ class JobTracker(
             when (job.kind) {
                 JobKind.Backup -> type.contains("vzdump")
                 JobKind.Restore -> type.contains("restore")
-                JobKind.Create -> type.contains("create") || type.contains("clone")
+                JobKind.Create -> type.contains("create")
+                JobKind.Migrate -> type.contains("migrat")
+                JobKind.Clone -> type.contains("clone")
                 JobKind.Task -> true
             } && (t.status.equals("running", ignoreCase = true) || t.endtime == null || t.endtime == 0L)
         }
@@ -404,6 +469,8 @@ fun kindLabel(kind: JobKind, phase: String): String {
         JobKind.Backup -> "Backup"
         JobKind.Restore -> "Restore"
         JobKind.Create -> "Create"
+        JobKind.Migrate -> "Migrate"
+        JobKind.Clone -> "Clone"
         JobKind.Task -> "Task"
     }
     return when (phase) {

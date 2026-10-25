@@ -21,15 +21,20 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.outlined.Inbox
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -44,6 +49,9 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -54,7 +62,10 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupProperties
 import com.proxpanel.app.R
 import com.proxpanel.app.ui.theme.ProxBad
 import com.proxpanel.app.ui.theme.ProxCt
@@ -73,12 +84,65 @@ fun StatusDot(running: Boolean, locked: Boolean = false) {
         running -> ProxGood
         else -> ProxMuted
     }
-    Box(
-        modifier = Modifier
-            .size(10.dp)
-            .clip(CircleShape)
-            .background(color),
+    // Green "live" pulse while running — paused mid-fling.
+    val wantPulse = running && !locked
+    val scrolling = if (wantPulse) {
+        com.proxpanel.app.ui.util.LocalListScrollSession.current.scrolling
+    } else {
+        false
+    }
+    if (wantPulse && !scrolling) {
+        PulsingStatusDotCompact(color = color)
+    } else {
+        Box(
+            modifier = Modifier
+                .size(10.dp)
+                .clip(CircleShape)
+                .background(color),
+        )
+    }
+}
+
+@Composable
+private fun PulsingStatusDotCompact(color: Color) {
+    val pulse = rememberInfiniteTransition(label = "status-dot-pulse")
+    val pulseScale by pulse.animateFloat(
+        initialValue = 1f,
+        targetValue = 1.75f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1100, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart,
+        ),
+        label = "dot-s",
     )
+    val pulseAlpha by pulse.animateFloat(
+        initialValue = 0.4f,
+        targetValue = 0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1100, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart,
+        ),
+        label = "dot-a",
+    )
+    Box(contentAlignment = Alignment.Center, modifier = Modifier.size(10.dp)) {
+        Box(
+            modifier = Modifier
+                .size(8.dp)
+                .graphicsLayer {
+                    scaleX = pulseScale
+                    scaleY = pulseScale
+                    alpha = pulseAlpha
+                }
+                .clip(CircleShape)
+                .background(color.copy(alpha = 0.45f)),
+        )
+        Box(
+            modifier = Modifier
+                .size(6.dp)
+                .clip(CircleShape)
+                .background(color),
+        )
+    }
 }
 
 @Composable
@@ -300,29 +364,82 @@ fun ProxTopBar(
     subtitle: String? = null,
     navigationIcon: @Composable (() -> Unit)? = null,
     actions: @Composable () -> Unit = {},
+    /** Short help text — shows a small info icon next to the title when set. */
+    infoBody: String? = null,
     /**
      * When true (HomeShell tabs), skip status-bar insets — the shell already pads them.
      * Standalone screens (Create, Detail, Login) must keep the default false.
      */
     embeddedInShell: Boolean = false,
 ) {
+    var infoOpen by remember { mutableStateOf(false) }
+    val hasInfo = !infoBody.isNullOrBlank()
     TopAppBar(
         title = {
-            Column {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleLarge,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                if (!subtitle.isNullOrBlank()) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f, fill = false)) {
                     Text(
-                        text = subtitle,
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        text = title,
+                        style = MaterialTheme.typography.titleLarge,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
+                    if (!subtitle.isNullOrBlank()) {
+                        Text(
+                            text = subtitle,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+                if (hasInfo) {
+                    Box {
+                        IconButton(
+                            onClick = { infoOpen = !infoOpen },
+                            modifier = Modifier.size(36.dp),
+                        ) {
+                            Icon(
+                                Icons.Outlined.Info,
+                                contentDescription = stringResource(R.string.cd_view_info),
+                                modifier = Modifier.size(18.dp),
+                                tint = if (infoOpen) {
+                                    MaterialTheme.colorScheme.primary
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                },
+                            )
+                        }
+                        if (infoOpen) {
+                            Popup(
+                                alignment = Alignment.TopStart,
+                                offset = IntOffset(0, 44),
+                                onDismissRequest = { infoOpen = false },
+                                properties = PopupProperties(focusable = true),
+                            ) {
+                                Surface(
+                                    shape = MaterialTheme.shapes.medium,
+                                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                    tonalElevation = 3.dp,
+                                    shadowElevation = 6.dp,
+                                    modifier = Modifier
+                                        .widthIn(min = 200.dp, max = 320.dp)
+                                        .padding(end = ProxSpace.sm),
+                                ) {
+                                    Text(
+                                        text = infoBody.orEmpty(),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        modifier = Modifier
+                                            .heightIn(max = 220.dp)
+                                            .verticalScroll(rememberScrollState())
+                                            .padding(ProxSpace.md),
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
             }
         },

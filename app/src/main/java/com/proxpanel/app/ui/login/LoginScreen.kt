@@ -107,6 +107,34 @@ fun LoginScreen(
 
             Spacer(Modifier.height(ProxSpace.xxl))
 
+            if (state.profiles.isNotEmpty()) {
+                FieldLabel(stringResource(R.string.login_saved_servers))
+                Spacer(Modifier.height(ProxSpace.sm))
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(ProxSpace.sm),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    state.profiles.take(6).forEach { profile ->
+                        FilterChip(
+                            selected = state.activeProfileId == profile.id,
+                            onClick = { viewModel.selectProfile(profile) },
+                            label = {
+                                Text(
+                                    profile.label,
+                                    maxLines = 1,
+                                )
+                            },
+                            shape = MaterialTheme.shapes.small,
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                            ),
+                        )
+                    }
+                }
+                Spacer(Modifier.height(ProxSpace.lg))
+            }
+
             ProxCard {
                 FieldLabel(stringResource(R.string.login_field_server))
                 OutlinedTextField(

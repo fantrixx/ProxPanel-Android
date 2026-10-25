@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.proxpanel.app.data.ApiClient
 import com.proxpanel.app.data.BackupOverviewGuest
+import com.proxpanel.app.data.BackupScheduleJob
 import com.proxpanel.app.data.BackupStorage
 import com.proxpanel.app.data.NodesViewMode
 import com.proxpanel.app.data.PrefsStore
@@ -26,6 +27,7 @@ import java.util.Date
 data class BackupsUiState(
     val guests: List<BackupOverviewGuest> = emptyList(),
     val storages: List<BackupStorage> = emptyList(),
+    val scheduleJobs: List<BackupScheduleJob> = emptyList(),
     val viewMode: NodesViewMode = NodesViewMode.Cards,
     val loading: Boolean = true,
     val refreshing: Boolean = false,
@@ -101,11 +103,13 @@ class BackupsViewModel(
             try {
                 val storages = api.backupStorages()
                 val guests = api.backupsOverview()
+                val jobs = runCatching { api.backupJobs() }.getOrDefault(_state.value.scheduleJobs)
                 val running = syncRunningKeys()
                 _state.update {
                     it.copy(
                         storages = storages,
                         guests = guests,
+                        scheduleJobs = jobs,
                         runningKeys = running,
                         loading = false,
                         refreshing = false,

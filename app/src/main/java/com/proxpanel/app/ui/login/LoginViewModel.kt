@@ -8,6 +8,8 @@ import com.proxpanel.app.data.ApiClient
 import com.proxpanel.app.data.ApiException
 import com.proxpanel.app.data.CredentialStore
 import com.proxpanel.app.data.LoginPrefs
+import com.proxpanel.app.data.ServerProfile
+import com.proxpanel.app.data.ServerProfileStore
 import com.proxpanel.app.data.SessionStore
 import com.proxpanel.app.util.L10n
 import com.proxpanel.app.util.normalizeBaseUrl
@@ -25,6 +27,8 @@ data class LoginUiState(
     val realm: String = "pam",
     val verifyTls: Boolean = false,
     val rememberCredentials: Boolean = true,
+    val profiles: List<ServerProfile> = emptyList(),
+    val activeProfileId: String? = null,
     val pending: Boolean = false,
     val error: String? = null,
     val signedIn: Boolean = false,
@@ -35,6 +39,7 @@ class LoginViewModel(
     private val api: ApiClient,
     private val sessionStore: SessionStore,
     private val credentialStore: CredentialStore,
+    private val serverProfileStore: ServerProfileStore,
     private val l10n: L10n,
 ) : ViewModel() {
     private val _state = MutableStateFlow(LoginUiState())
@@ -44,7 +49,13 @@ class LoginViewModel(
         viewModelScope.launch {
             val prefs = sessionStore.loginPrefs.first()
             val auth = sessionStore.authSession.first()
-            val savedPassword = if (prefs.rememberCredentials) credentialStore.loadPassword() else ""
+            val profiles = serverProfileStore.list()
+            val activeId = serverProfileStore.activeId()
+            val savedPassword = if (prefs.rememberCredentials) {
+                credentialStore.loadPassword(activeId)
+            } else {
+                ""
+            }
             _state.update {
                 it.copy(
                     proxmoxHost = prefs.proxmoxHost,
@@ -53,6 +64,8 @@ class LoginViewModel(
                     realm = prefs.realm,
                     verifyTls = prefs.verifyTls,
                     rememberCredentials = prefs.rememberCredentials,
+                    profiles = profiles,
+                    activeProfileId = activeId,
                 )
             }
             if (prefs.proxmoxHost.isNotBlank() && !auth.ticket.isNullOrBlank()) {
@@ -74,10 +87,34 @@ class LoginViewModel(
                 _state.update { it.copy(checkingSession = false) }
             }
         }
+        viewModelScope.launch {
+            serverProfileStore.profiles.collect { list ->
+                _state.update { it.copy(profiles = list) }
+            }
+        }
     }
 
     fun update(transform: (LoginUiState) -> LoginUiState) {
         _state.update(transform)
+    }
+
+    fun selectProfile(profile: ServerProfile) {
+        viewModelScope.launch {
+            serverProfileStore.setActive(profile.id)
+            val password = credentialStore.loadPassword(profile.id)
+            _state.update {
+                it.copy(
+                    activeProfileId = profile.id,
+                    proxmoxHost = profile.host,
+                    username = profile.username,
+                    realm = profile.realm,
+                    verifyTls = profile.verifyTls,
+                    password = password,
+                    rememberCredentials = password.isNotBlank() || it.rememberCredentials,
+                    error = null,
+                )
+            }
+        }
     }
 
     fun signIn() {
@@ -106,15 +143,22 @@ class LoginViewModel(
                         rememberCredentials = s.rememberCredentials,
                     ),
                 )
+                val profile = serverProfileStore.upsertFromLogin(
+                    host = host,
+                    username = s.username.trim(),
+                    realm = s.realm,
+                    verifyTls = s.verifyTls,
+                )
                 if (s.rememberCredentials) {
-                    credentialStore.savePassword(s.password)
+                    credentialStore.savePassword(s.password, profile.id)
                 } else {
-                    credentialStore.clearPassword()
+                    credentialStore.clearPassword(profile.id)
                 }
                 _state.update {
                     it.copy(
                         pending = false,
                         signedIn = true,
+                        activeProfileId = profile.id,
                         password = if (s.rememberCredentials) s.password else "",
                     )
                 }
@@ -136,11 +180,12 @@ class LoginViewModel(
             api: ApiClient,
             store: SessionStore,
             credentials: CredentialStore,
+            profiles: ServerProfileStore,
             l10n: L10n,
         ) = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>): T =
-                LoginViewModel(api, store, credentials, l10n) as T
+                LoginViewModel(api, store, credentials, profiles, l10n) as T
         }
     }
 }

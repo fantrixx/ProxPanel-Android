@@ -179,6 +179,39 @@ data class LoginPrefs(
     val rememberCredentials: Boolean = true,
 )
 
+data class ServerProfile(
+    val id: String,
+    val label: String,
+    val host: String,
+    val username: String,
+    val realm: String = "pam",
+    val verifyTls: Boolean = false,
+)
+
+data class BackupScheduleJob(
+    val id: String,
+    val enabled: Boolean,
+    val schedule: String?,
+    val storage: String?,
+    val node: String?,
+    /** Comma-separated VMIDs when not backing up everything. */
+    val selection: String?,
+    val allGuests: Boolean = false,
+    val pool: String? = null,
+    val mode: String?,
+    val compress: String?,
+    val notes: String?,
+)
+
+data class HaResourceStatus(
+    val sid: String,
+    val state: String?,
+    val status: String?,
+    val node: String?,
+    val type: String?,
+    val vmid: Int?,
+)
+
 data class GuestItem(
     val node: String,
     val type: String,
@@ -200,6 +233,8 @@ data class GuestItem(
     val diskwrite: Long? = null,
     val resourceId: String = "",
     val tags: String? = null,
+    /** HA state from `/cluster/ha/status/current`, e.g. started / stopped / error. */
+    val haState: String? = null,
 ) {
     val isRunning: Boolean
         get() = status.equals("running", ignoreCase = true)

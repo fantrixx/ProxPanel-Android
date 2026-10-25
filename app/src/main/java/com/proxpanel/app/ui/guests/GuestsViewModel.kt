@@ -284,7 +284,24 @@ class GuestsViewModel(
                         val res = api.resources()
                         val prev = currentState()
                         val pinned = prev.pinnedKeys
+                        val prevHa = prev.guests.associate { "${it.type}/${it.vmid}" to it.haState }
+                        val haMap = if (!silent || prevHa.isEmpty()) {
+                            runCatching { api.haStatus() }.getOrDefault(emptyList())
+                                .mapNotNull { ha ->
+                                    val vmid = ha.vmid ?: return@mapNotNull null
+                                    val type = ha.type ?: return@mapNotNull null
+                                    "$type/$vmid" to (ha.state ?: ha.status)
+                                }
+                                .toMap()
+                        } else {
+                            prevHa
+                        }
                         val guests = res.resources.mapNotNull { it.toGuestOrNull() }
+                            .map { g ->
+                                val key = "${g.type}/${g.vmid}"
+                                val ha = haMap[key]
+                                if (ha != null) g.copy(haState = ha) else g
+                            }
                             .sortedWith(
                                 compareByDescending<GuestItem> { it.key in pinned }
                                     .thenByDescending { it.isRunning }
@@ -299,7 +316,22 @@ class GuestsViewModel(
                             }.getOrDefault(prev.backupStorages)
                         }
                         val (rates, history) = computeRatesAndSparks(guests)
-                        val cluster = computeClusterOverview(res.resources, guests)
+                        val taskStats = if (!silent || (prev.cluster.tasksRunning == 0 && prev.cluster.tasksFailed == 0)) {
+                            summarizeRecentTasks()
+                        } else {
+                            prev.cluster.tasksRunning to prev.cluster.tasksFailed
+                        }
+                        val activeJobs = jobTracker.jobs.value.count { job ->
+                            val snap = jobTracker.snapshots.value[job.id]
+                            snap == null || snap.running || job.upid.isBlank()
+                        }
+                        val cluster = computeClusterOverview(
+                            resources = res.resources,
+                            guests = guests,
+                            tasksRunning = taskStats.first,
+                            tasksFailed = taskStats.second,
+                            activeJobs = activeJobs,
+                        )
                         val guestsOut = if (guests == prev.guests) prev.guests else guests
                         val ratesOut = if (rates == prev.rates) prev.rates else rates
                         val historyOut = if (history == prev.cpuHistory) prev.cpuHistory else history
@@ -414,12 +446,33 @@ class GuestsViewModel(
     private fun computeClusterOverview(
         resources: List<com.proxpanel.app.data.ClusterResource>,
         guests: List<GuestItem>,
+        tasksRunning: Int = 0,
+        tasksFailed: Int = 0,
+        activeJobs: Int = 0,
     ): ClusterOverview {
         val nodes = resources.mapNotNull { it.toNodeOrNull() }
         val online = nodes.count { it.status.equals("online", ignoreCase = true) }
         val storages = resources.mapNotNull { it.toStorageOrNull() }
         val total = storages.mapNotNull { it.maxdisk }.sum()
         val used = storages.mapNotNull { it.disk }.sum()
+        val nodeSummaries = nodes
+            .sortedBy { it.node?.lowercase() }
+            .map { n ->
+                val name = n.node.orEmpty()
+                val isOnline = n.status.equals("online", ignoreCase = true)
+                val cpuPct = n.cpu?.let { (it * 100.0).toFloat().coerceIn(0f, 100f) }
+                val memPct = if (n.mem != null && n.maxmem != null && n.maxmem > 0) {
+                    (n.mem.toDouble() / n.maxmem.toDouble() * 100.0).toFloat().coerceIn(0f, 100f)
+                } else {
+                    null
+                }
+                com.proxpanel.app.ui.components.ClusterNodeSummary(
+                    name = name,
+                    online = isOnline,
+                    cpuPct = cpuPct,
+                    memPct = memPct,
+                )
+            }
         return ClusterOverview(
             nodesOnline = online,
             nodesTotal = nodes.size,
@@ -427,7 +480,36 @@ class GuestsViewModel(
             guestsTotal = guests.size,
             storageFree = if (total > 0) (total - used).coerceAtLeast(0) else null,
             storageTotal = total.takeIf { it > 0 },
+            storageUsed = if (total > 0) used.coerceAtLeast(0) else null,
+            haManaged = guests.count { !it.haState.isNullOrBlank() },
+            nodes = nodeSummaries,
+            tasksRunning = tasksRunning,
+            tasksFailed = tasksFailed,
+            activeJobs = activeJobs,
         )
+    }
+
+    /** Recent cluster tasks: running count + recent failures (last ~24h window by endtime). */
+    private suspend fun summarizeRecentTasks(): Pair<Int, Int> {
+        val tasks = runCatching { api.tasks(limit = 80) }.getOrDefault(emptyList())
+        val nowSec = System.currentTimeMillis() / 1000L
+        val dayAgo = nowSec - 86_400L
+        var running = 0
+        var failed = 0
+        for (t in tasks) {
+            val ended = t.endtime != null && t.endtime != 0L
+            if (!ended) {
+                running++
+                continue
+            }
+            val end = t.endtime ?: continue
+            if (end < dayAgo) continue
+            val status = t.status.orEmpty().lowercase()
+            if (status.isNotBlank() && status != "ok" && !status.startsWith("ok")) {
+                failed++
+            }
+        }
+        return running to failed
     }
 
     fun logout(onDone: () -> Unit) {

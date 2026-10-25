@@ -32,6 +32,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Info
@@ -43,6 +44,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -74,6 +76,7 @@ import com.proxpanel.app.ui.util.rememberAppHaptics
 @Composable
 fun SettingsScreen(
     viewModel: SettingsViewModel,
+    onSwitchServer: () -> Unit = {},
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val haptics = rememberAppHaptics()
@@ -86,6 +89,7 @@ fun SettingsScreen(
             ProxTopBar(
                 title = stringResource(R.string.settings_title),
                 subtitle = stringResource(R.string.settings_subtitle),
+                infoBody = stringResource(R.string.info_settings),
                 embeddedInShell = true,
             )
         },
@@ -99,7 +103,64 @@ fun SettingsScreen(
                 .padding(bottom = ProxSpace.xxl),
             verticalArrangement = Arrangement.spacedBy(ProxSpace.lg),
         ) {
-            Spacer(Modifier.height(ProxSpace.xs))
+            com.proxpanel.app.ui.components.ActiveJobsBelowTitle()
+
+            if (state.profiles.isNotEmpty()) {
+                SettingsSection(
+                    icon = Icons.Default.Dns,
+                    title = stringResource(R.string.settings_servers_title),
+                    subtitle = stringResource(R.string.settings_servers_subtitle),
+                ) {
+                    state.profiles.forEach { profile ->
+                        val active = profile.id == state.activeProfileId
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = ProxSpace.xs),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    profile.label,
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
+                                )
+                                Text(
+                                    "${profile.username}@${profile.host.removePrefix("https://").removePrefix("http://")}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                )
+                                if (active) {
+                                    Text(
+                                        stringResource(R.string.settings_server_active),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.primary,
+                                    )
+                                }
+                            }
+                            if (!active) {
+                                TextButton(
+                                    onClick = {
+                                        haptics.tick()
+                                        viewModel.switchProfile(profile, onSwitchServer)
+                                    },
+                                ) {
+                                    Text(stringResource(R.string.settings_server_switch))
+                                }
+                            }
+                            TextButton(
+                                onClick = {
+                                    haptics.tick()
+                                    viewModel.deleteProfile(profile.id)
+                                },
+                            ) {
+                                Text(stringResource(R.string.action_delete))
+                            }
+                        }
+                    }
+                }
+            }
 
             SettingsSection(
                 icon = Icons.Default.Sync,

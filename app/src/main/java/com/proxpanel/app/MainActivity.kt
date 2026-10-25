@@ -75,6 +75,7 @@ private fun ProxPanelNav(container: AppContainer) {
                     container.api,
                     container.sessionStore,
                     container.credentialStore,
+                    container.serverProfileStore,
                     container.l10n,
                 ),
             )

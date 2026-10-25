@@ -1,5 +1,33 @@
 package com.proxpanel.app.util
 
+import androidx.core.text.HtmlCompat
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
+
+/**
+ * Proxmox guest notes/description are often HTML (`<div>…</div>`) for the web UI.
+ * Strip tags/entities so the Android app shows readable plain text.
+ */
+fun htmlToPlainText(raw: String?): String {
+    if (raw.isNullOrBlank()) return ""
+    val trimmed = raw.trim()
+    if (!trimmed.contains('<') && !trimmed.contains('&')) return trimmed
+    return HtmlCompat.fromHtml(trimmed, HtmlCompat.FROM_HTML_MODE_LEGACY)
+        .toString()
+        .replace('\u00A0', ' ')
+        .lines()
+        .joinToString("\n") { it.trimEnd() }
+        .trim()
+}
+
+fun jsonConfigString(el: JsonElement?): String =
+    when (el) {
+        is JsonPrimitive -> el.contentOrNull.orEmpty()
+        null -> ""
+        else -> el.toString().trim('"')
+    }
+
 fun formatBytes(n: Long?): String {
     if (n == null) return "—"
     val abs = kotlin.math.abs(n.toDouble())

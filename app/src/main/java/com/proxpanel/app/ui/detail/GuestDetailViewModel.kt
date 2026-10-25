@@ -16,6 +16,8 @@ import com.proxpanel.app.R
 import com.proxpanel.app.data.Snapshot
 import com.proxpanel.app.jobs.JobTracker
 import com.proxpanel.app.util.L10n
+import com.proxpanel.app.util.htmlToPlainText
+import com.proxpanel.app.util.jsonConfigString
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -45,6 +47,9 @@ data class DetailUiState(
     val coresInput: String = "",
     val memoryInput: String = "",
     val swapInput: String = "",
+    val tagsInput: String = "",
+    val notesInput: String = "",
+    val nodeOptions: List<String> = emptyList(),
     val newSnapName: String = "",
     val loading: Boolean = true,
     val busy: Boolean = false,
@@ -126,6 +131,8 @@ class GuestDetailViewModel(
     fun setCores(value: String) = _state.update { it.copy(coresInput = value) }
     fun setMemory(value: String) = _state.update { it.copy(memoryInput = value) }
     fun setSwap(value: String) = _state.update { it.copy(swapInput = value) }
+    fun setTags(value: String) = _state.update { it.copy(tagsInput = value) }
+    fun setNotes(value: String) = _state.update { it.copy(notesInput = value) }
     fun clearMessage() = _state.update { it.copy(message = null, error = null) }
 
     fun refresh(silent: Boolean = false) {
@@ -151,21 +158,33 @@ class GuestDetailViewModel(
                 val memory = detail.config["memory"]?.toString()?.trim('"')
                     ?: detail.status.maxmem?.let { (it / (1024 * 1024)).toString() }.orEmpty()
                 val swap = detail.config["swap"]?.toString()?.trim('"').orEmpty()
+                val tags = jsonConfigString(detail.config["tags"])
+                val notes = htmlToPlainText(jsonConfigString(detail.config["description"]))
                 val current = _state.value
                 val stores = if (current.backupStorages.isEmpty() || !silent) {
                     runCatching { api.backupStorages() }.getOrDefault(current.backupStorages)
                 } else {
                     current.backupStorages
                 }
+                val nodes = if (current.nodeOptions.isEmpty() || !silent) {
+                    runCatching { api.listNodeNames() }.getOrDefault(current.nodeOptions)
+                } else {
+                    current.nodeOptions
+                }
                 val next = current.copy(
-                    guest = updated,
+                    guest = updated.copy(
+                        tags = tags.ifBlank { updated.tags },
+                    ),
                     detail = detail,
                     backupStorages = stores,
+                    nodeOptions = nodes,
                     loading = false,
                     error = null,
                     coresInput = current.coresInput.ifBlank { cores },
                     memoryInput = current.memoryInput.ifBlank { memory },
                     swapInput = current.swapInput.ifBlank { swap },
+                    tagsInput = current.tagsInput.ifBlank { tags },
+                    notesInput = current.notesInput.ifBlank { notes },
                 )
                 if (silent) publishSilent(next) else _state.value = next
             } catch (e: Exception) {
@@ -267,6 +286,98 @@ class GuestDetailViewModel(
                     swapMb = swap,
                 )
                 _state.update { it.copy(busy = false, message = l10n.get(R.string.toast_resources_saved)) }
+                refresh(silent = true)
+            } catch (e: Exception) {
+                _state.update { it.copy(busy = false, error = e.message) }
+            }
+        }
+    }
+
+    fun saveTagsAndNotes() {
+        val s = _state.value
+        viewModelScope.launch {
+            _state.update { it.copy(busy = true, error = null) }
+            try {
+                api.updateGuestConfig(
+                    node = s.guest.node,
+                    type = s.guest.type,
+                    vmid = s.guest.vmid,
+                    tags = s.tagsInput.trim(),
+                    description = s.notesInput.trim(),
+                )
+                _state.update {
+                    it.copy(
+                        busy = false,
+                        message = l10n.get(R.string.toast_meta_saved),
+                        guest = it.guest.copy(tags = s.tagsInput.trim().ifBlank { null }),
+                    )
+                }
+            } catch (e: Exception) {
+                _state.update { it.copy(busy = false, error = e.message) }
+            }
+        }
+    }
+
+    fun migrateGuest(target: String, online: Boolean, withLocalDisks: Boolean) {
+        if (target.isBlank() || target == _state.value.guest.node) {
+            _state.update { it.copy(error = l10n.get(R.string.error_migrate_target)) }
+            return
+        }
+        viewModelScope.launch {
+            val g = _state.value.guest
+            _state.update { it.copy(busy = true, error = null) }
+            try {
+                jobTracker.trackMigrate(
+                    node = g.node,
+                    type = g.type,
+                    vmid = g.vmid,
+                    name = g.name,
+                    target = target,
+                    online = online,
+                    withLocalDisks = withLocalDisks,
+                )
+                _state.update { it.copy(busy = false, message = l10n.get(R.string.toast_migrate_started)) }
+            } catch (e: Exception) {
+                _state.update { it.copy(busy = false, error = e.message) }
+            }
+        }
+    }
+
+    fun cloneGuest(newid: Int, name: String?, target: String?, full: Boolean) {
+        viewModelScope.launch {
+            val g = _state.value.guest
+            _state.update { it.copy(busy = true, error = null) }
+            try {
+                jobTracker.trackClone(
+                    node = g.node,
+                    type = g.type,
+                    vmid = g.vmid,
+                    name = g.name,
+                    newid = newid,
+                    cloneName = name,
+                    target = target,
+                    full = full,
+                )
+                _state.update { it.copy(busy = false, message = l10n.get(R.string.toast_clone_started)) }
+            } catch (e: Exception) {
+                _state.update { it.copy(busy = false, error = e.message) }
+            }
+        }
+    }
+
+    suspend fun suggestNextId(): Int = runCatching { api.nextId() }.getOrDefault(_state.value.guest.vmid + 1)
+
+    fun convertToTemplate() {
+        viewModelScope.launch {
+            val g = _state.value.guest
+            if (g.isRunning) {
+                _state.update { it.copy(error = l10n.get(R.string.error_template_must_stop)) }
+                return@launch
+            }
+            _state.update { it.copy(busy = true, error = null) }
+            try {
+                api.convertToTemplate(g.node, g.type, g.vmid)
+                _state.update { it.copy(busy = false, message = l10n.get(R.string.toast_template_created)) }
                 refresh(silent = true)
             } catch (e: Exception) {
                 _state.update { it.copy(busy = false, error = e.message) }

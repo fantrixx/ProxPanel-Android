@@ -52,7 +52,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontFamily
@@ -80,6 +79,7 @@ fun JobProgressBar(
     failed: Boolean,
     ok: Boolean,
     modifier: Modifier = Modifier,
+    barHeight: androidx.compose.ui.unit.Dp = 4.dp,
 ) {
     val track = MaterialTheme.colorScheme.surfaceContainerHighest
     val color = when {
@@ -90,18 +90,18 @@ fun JobProgressBar(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(10.dp)
+            .height(barHeight)
             .clip(RoundedCornerShape(999.dp))
             .background(track),
     ) {
         if (progress == null && running) {
-            IndeterminateSweep(color = color)
+            IndeterminateSweep(color = color, barHeight = barHeight)
         } else {
             val pct = ((progress ?: if (failed) 100f else 8f) / 100f).coerceIn(0f, 1f)
             Box(
                 modifier = Modifier
                     .fillMaxWidth(pct)
-                    .height(10.dp)
+                    .height(barHeight)
                     .clip(RoundedCornerShape(999.dp))
                     .background(color),
             )
@@ -110,23 +110,29 @@ fun JobProgressBar(
 }
 
 @Composable
-private fun IndeterminateSweep(color: Color) {
+private fun IndeterminateSweep(
+    color: Color,
+    barHeight: androidx.compose.ui.unit.Dp = 4.dp,
+) {
     val scrolling = com.proxpanel.app.ui.util.LocalListScrollSession.current.scrolling
     if (scrolling) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(10.dp)
+                .height(barHeight)
                 .clip(RoundedCornerShape(999.dp))
                 .background(color.copy(alpha = 0.45f)),
         )
         return
     }
-    AnimatedIndeterminateSweep(color)
+    AnimatedIndeterminateSweep(color = color, barHeight = barHeight)
 }
 
 @Composable
-private fun AnimatedIndeterminateSweep(color: Color) {
+private fun AnimatedIndeterminateSweep(
+    color: Color,
+    barHeight: androidx.compose.ui.unit.Dp = 4.dp,
+) {
     val density = LocalDensity.current
     var widthPx by remember { mutableStateOf(0) }
     val transition = rememberInfiniteTransition(label = "job-sweep")
@@ -145,14 +151,14 @@ private fun AnimatedIndeterminateSweep(color: Color) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(10.dp)
+            .height(barHeight)
             .onSizeChanged { widthPx = it.width },
     ) {
         Box(
             modifier = Modifier
                 .offset { IntOffset(x, 0) }
                 .width(with(density) { barWidth.toDp() })
-                .height(10.dp)
+                .height(barHeight)
                 .clip(RoundedCornerShape(999.dp))
                 .background(color),
         )
@@ -168,243 +174,217 @@ fun ActiveJobsBanner(
     val jobs by tracker.jobs.collectAsState()
     val snapsLive by tracker.snapshots.collectAsState()
     val scrolling = com.proxpanel.app.ui.util.LocalListScrollSession.current.scrolling
-    // Hold snapshot ticks while a tab list is flinging — banner stays, no mid-scroll churn.
     var frozenSnaps by remember { mutableStateOf(snapsLive) }
     LaunchedEffect(scrolling, snapsLive) {
         if (!scrolling) frozenSnaps = snapsLive
     }
     val snaps = if (scrolling) frozenSnaps else snapsLive
-    if (jobs.isEmpty()) return
+
+    // UI-only hide — jobs keep running in the background.
+    var hiddenIds by remember { mutableStateOf(emptySet<String>()) }
+    var expanded by remember { mutableStateOf(false) }
+    LaunchedEffect(jobs.map { it.id }) {
+        if (jobs.isEmpty()) {
+            hiddenIds = emptySet()
+            expanded = false
+        } else {
+            // Drop stale hide markers; keep hide for still-running dismissed UI.
+            hiddenIds = hiddenIds.intersect(jobs.map { it.id }.toSet())
+        }
+    }
+    val visible = jobs.filter { it.id !in hiddenIds }
+    if (visible.isEmpty()) return
+
+    val primary = visible.first()
+    val primarySnap = snaps[primary.id] ?: JobSnapshot(running = true)
+    val list = visible.mapNotNull { snaps[it.id] }
+    val activeRunning = list.any { it.running } || list.size < visible.size
+    val failedCount = list.count { it.failed }
+    val allFailed = list.size == visible.size && failedCount == visible.size && !activeRunning
+    val progresses = list.mapNotNull { it.progress }
+    val avgProgress = when {
+        progresses.isNotEmpty() -> progresses.average().toFloat()
+        else -> primarySnap.progress
+    }
+    val headline = when {
+        visible.size == 1 -> if (primarySnap.running) primary.title else localizedKindLabel(
+            primary.kind,
+            when {
+                primarySnap.failed -> "fail"
+                else -> "ok"
+            },
+        )
+        activeRunning -> stringResource(R.string.jobs_active_many, visible.size)
+        failedCount > 0 -> stringResource(R.string.jobs_failed_many, failedCount)
+        else -> stringResource(R.string.jobs_finished_many, visible.size)
+    }
+    val pctLabel = avgProgress?.let { "${it.toInt()}%" }
 
     Surface(
-        modifier = modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        tonalElevation = 0.dp,
-    ) {
-        Column {
-            HorizontalDivider(color = MaterialTheme.colorScheme.primary.copy(alpha = 0.35f))
-            if (jobs.size == 1) {
-                val job = jobs.first()
-                val snap = snaps[job.id] ?: JobSnapshot(running = true)
-                JobBannerRow(
-                    job = job,
-                    snap = snap,
-                    onDismiss = { tracker.dismissJob(job.id) },
-                    onOpenTasks = onOpenTasks,
-                )
-            } else {
-                MultiJobBanner(
-                    jobs = jobs,
-                    snaps = snaps,
-                    onDismiss = tracker::dismissJob,
-                    onOpenTasks = onOpenTasks,
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun MultiJobBanner(
-    jobs: List<ActiveJob>,
-    snaps: Map<String, JobSnapshot>,
-    onDismiss: (String) -> Unit,
-    onOpenTasks: (() -> Unit)?,
-) {
-    var expanded by remember { mutableStateOf(false) }
-    val list = jobs.mapNotNull { snaps[it.id] }
-    val runningCount = list.count { it.running }.coerceAtLeast(
-        if (list.size < jobs.size) jobs.size - list.count { !it.running } else 0,
-    )
-    val activeRunning = list.any { it.running } || list.size < jobs.size
-    val failedCount = list.count { it.failed }
-    val doneCount = list.count { it.ok }
-    val progresses = list.mapNotNull { it.progress }
-    val avgProgress = if (progresses.isNotEmpty()) progresses.average().toFloat() else null
-    val allFailed = list.size == jobs.size && failedCount == jobs.size && !activeRunning
-
-    Column {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable { expanded = !expanded }
-                .padding(horizontal = ProxSpace.screen, vertical = ProxSpace.md),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            JobStatusIcon(running = activeRunning, failed = allFailed)
-            Spacer(Modifier.width(ProxSpace.md))
-            Column(modifier = Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = when {
-                            activeRunning -> if (runningCount == 1) {
-                                stringResource(R.string.jobs_active_one)
-                            } else {
-                                stringResource(R.string.jobs_active_many, runningCount.coerceAtLeast(1))
-                            }
-                            failedCount > 0 -> if (failedCount == 1) {
-                                stringResource(R.string.jobs_failed_one)
-                            } else {
-                                stringResource(R.string.jobs_failed_many, failedCount)
-                            }
-                            else -> {
-                                val n = doneCount.coerceAtLeast(jobs.size)
-                                if (n == 1) {
-                                    stringResource(R.string.jobs_finished_one)
-                                } else {
-                                    stringResource(R.string.jobs_finished_many, n)
-                                }
-                            }
-                        },
-                        style = MaterialTheme.typography.titleSmall,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f, fill = false),
-                    )
-                    Icon(
-                        imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(18.dp),
-                    )
-                }
-                if (!expanded) {
-                    Spacer(Modifier.height(ProxSpace.sm))
-                    JobProgressBar(
-                        progress = avgProgress,
-                        running = activeRunning,
-                        failed = allFailed,
-                        ok = !activeRunning && !allFailed,
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        text = jobs.first().title + if (jobs.size > 1) {
-                            " · " + stringResource(R.string.jobs_more, jobs.size - 1)
-                        } else {
-                            ""
-                        },
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-            }
-            if (onOpenTasks != null) {
-                TextButton(onClick = onOpenTasks) {
-                    Text(stringResource(R.string.nav_tasks))
-                }
-            }
-        }
-        AnimatedVisibility(
-            visible = expanded,
-            enter = expandVertically() + fadeIn(),
-            exit = shrinkVertically() + fadeOut(),
-        ) {
-            Column {
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                jobs.forEach { job ->
-                    val snap = snaps[job.id] ?: JobSnapshot(running = true)
-                    JobBannerRow(
-                        job = job,
-                        snap = snap,
-                        onDismiss = { onDismiss(job.id) },
-                        onOpenTasks = null,
-                        compact = true,
-                    )
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun JobBannerRow(
-    job: ActiveJob,
-    snap: JobSnapshot,
-    onDismiss: () -> Unit,
-    onOpenTasks: (() -> Unit)?,
-    compact: Boolean = false,
-) {
-    val phase = when {
-        snap.running -> "run"
-        snap.failed -> "fail"
-        else -> "ok"
-    }
-    val title = if (snap.running) job.title else localizedKindLabel(job.kind, phase)
-    val scrolling = if (snap.running) {
-        com.proxpanel.app.ui.util.LocalListScrollSession.current.scrolling
-    } else {
-        false
-    }
-
-    Column(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
-            .padding(
-                horizontal = ProxSpace.screen,
-                vertical = if (compact) ProxSpace.sm else ProxSpace.md,
-            ),
+            .padding(horizontal = ProxSpace.screen, vertical = ProxSpace.xs),
+        shape = MaterialTheme.shapes.small,
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)),
+        tonalElevation = 0.dp,
+        shadowElevation = 0.dp,
     ) {
-        Row(verticalAlignment = Alignment.Top) {
-            if (snap.running && !scrolling) {
-                PulsingJobIcon(running = true, failed = snap.failed)
-            } else {
-                JobStatusIcon(running = snap.running, failed = snap.failed)
-            }
-            Spacer(Modifier.width(ProxSpace.md))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(title, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(
-                    text = job.detail,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Spacer(Modifier.height(ProxSpace.sm))
-                JobProgressBar(
-                    progress = snap.progress,
-                    running = snap.running,
-                    failed = snap.failed,
-                    ok = snap.ok,
-                )
-                Spacer(Modifier.height(4.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 10.dp, end = 2.dp, top = 4.dp, bottom = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                JobStatusIcon(running = activeRunning, failed = allFailed)
+                Spacer(Modifier.width(8.dp))
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable { expanded = !expanded },
                 ) {
                     Text(
-                        text = localizedJobMeta(snap, job),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        text = headline,
+                        style = MaterialTheme.typography.labelLarge,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
-                    if (snap.etaSec != null) {
+                    if (!expanded) {
                         Text(
-                            text = stringResource(R.string.job_eta_left, formatDuration(snap.etaSec)),
+                            text = buildString {
+                                append(primary.detail.ifBlank { primary.title })
+                                if (pctLabel != null) {
+                                    append(" · ")
+                                    append(pctLabel)
+                                }
+                                if (visible.size > 1) {
+                                    append(" ")
+                                    append(stringResource(R.string.jobs_more, visible.size - 1))
+                                }
+                            },
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                         )
                     }
                 }
-                if (!snap.latestLog.isNullOrBlank() && (snap.running || snap.failed)) {
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        text = snap.latestLog,
-                        style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace),
-                        color = if (snap.failed) ProxBad else MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
+                IconButton(
+                    onClick = { expanded = !expanded },
+                    modifier = Modifier.size(32.dp),
+                ) {
+                    Icon(
+                        imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                        contentDescription = stringResource(
+                            if (expanded) R.string.jobs_collapse else R.string.jobs_expand,
+                        ),
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
+                IconButton(
+                    onClick = {
+                        hiddenIds = hiddenIds + visible.map { it.id }
+                        expanded = false
+                    },
+                    modifier = Modifier.size(32.dp),
+                ) {
+                    Icon(
+                        Icons.Default.Close,
+                        contentDescription = stringResource(R.string.jobs_hide_banner),
+                        modifier = Modifier.size(18.dp),
                     )
                 }
             }
-            IconButton(onClick = onDismiss) {
-                Icon(Icons.Default.Close, contentDescription = stringResource(R.string.action_dismiss))
+            if (!expanded) {
+                JobProgressBar(
+                    progress = avgProgress,
+                    running = activeRunning,
+                    failed = allFailed,
+                    ok = !activeRunning && !allFailed,
+                    barHeight = 3.dp,
+                    modifier = Modifier
+                        .padding(horizontal = 10.dp)
+                        .padding(bottom = 6.dp),
+                )
+            }
+            AnimatedVisibility(
+                visible = expanded,
+                enter = expandVertically() + fadeIn(),
+                exit = shrinkVertically() + fadeOut(),
+            ) {
+                Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)) {
+                    visible.forEach { job ->
+                        val snap = snaps[job.id] ?: JobSnapshot(running = true)
+                        CompactJobDetails(job = job, snap = snap)
+                        Spacer(Modifier.height(6.dp))
+                    }
+                    if (onOpenTasks != null) {
+                        TextButton(
+                            onClick = onOpenTasks,
+                            modifier = Modifier.align(Alignment.End),
+                        ) {
+                            Text(stringResource(R.string.jobs_open_tasks))
+                        }
+                    }
+                }
             }
         }
-        if (onOpenTasks != null) {
-            TextButton(onClick = onOpenTasks) { Text(stringResource(R.string.jobs_open_tasks)) }
+    }
+}
+
+@Composable
+private fun CompactJobDetails(job: ActiveJob, snap: JobSnapshot) {
+    val title = if (snap.running) job.title else localizedKindLabel(
+        job.kind,
+        when {
+            snap.failed -> "fail"
+            else -> "ok"
+        },
+    )
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(title, style = MaterialTheme.typography.labelLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(
+            text = job.detail,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Spacer(Modifier.height(4.dp))
+        JobProgressBar(
+            progress = snap.progress,
+            running = snap.running,
+            failed = snap.failed,
+            ok = snap.ok,
+            barHeight = 3.dp,
+        )
+        Spacer(Modifier.height(2.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text(
+                text = localizedJobMeta(snap, job),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            if (snap.etaSec != null) {
+                Text(
+                    text = stringResource(R.string.job_eta_left, formatDuration(snap.etaSec)),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        if (!snap.latestLog.isNullOrBlank() && (snap.running || snap.failed)) {
+            Text(
+                text = snap.latestLog,
+                style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace),
+                color = if (snap.failed) ProxBad else MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
     }
 }
@@ -419,23 +399,6 @@ private fun JobStatusIcon(running: Boolean, failed: Boolean) {
         )
         failed -> Icon(Icons.Default.Error, contentDescription = null, tint = ProxBad, modifier = Modifier.size(20.dp))
         else -> Icon(Icons.Default.CheckCircle, contentDescription = null, tint = ProxGood, modifier = Modifier.size(20.dp))
-    }
-}
-
-@Composable
-private fun PulsingJobIcon(running: Boolean, failed: Boolean) {
-    val pulse = rememberInfiniteTransition(label = "job-pulse")
-    val pulseAlpha by pulse.animateFloat(
-        initialValue = 0.55f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(900, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse,
-        ),
-        label = "pulse-a",
-    )
-    Box(modifier = Modifier.graphicsLayer { alpha = pulseAlpha }) {
-        JobStatusIcon(running = running, failed = failed)
     }
 }
 
@@ -548,6 +511,8 @@ private fun localizedKindLabel(kind: JobKind, phase: String): String {
         JobKind.Backup -> "Backup"
         JobKind.Restore -> "Restore"
         JobKind.Create -> "Create"
+        JobKind.Migrate -> "Migrate"
+        JobKind.Clone -> "Clone"
         JobKind.Task -> "Task"
     }
     return when (phase) {

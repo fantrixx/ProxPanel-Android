@@ -1,8 +1,11 @@
 package com.proxpanel.app.ui.backups
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -11,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -18,6 +22,7 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CloudUpload
@@ -52,13 +57,17 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.proxpanel.app.R
 import com.proxpanel.app.data.BackupOverviewGuest
+import com.proxpanel.app.data.BackupScheduleJob
 import com.proxpanel.app.data.MediaItem
 import com.proxpanel.app.data.NodesViewMode
 import com.proxpanel.app.ui.components.AppearanceDialog
@@ -71,6 +80,8 @@ import com.proxpanel.app.ui.components.ProxLoadingState
 import com.proxpanel.app.ui.components.ProxSearchBar
 import com.proxpanel.app.ui.components.ProxTopBar
 import com.proxpanel.app.ui.theme.ProxBad
+import com.proxpanel.app.ui.theme.ProxGood
+import com.proxpanel.app.ui.theme.ProxMuted
 import com.proxpanel.app.ui.theme.ProxSpace
 import com.proxpanel.app.ui.util.rememberAppHaptics
 import kotlinx.coroutines.launch
@@ -145,6 +156,7 @@ fun BackupsScreen(viewModel: BackupsViewModel) {
                 } else {
                     null
                 },
+                infoBody = stringResource(R.string.info_backups),
                 embeddedInShell = true,
                 actions = {
                     IconButton(onClick = { appearanceOpen = true }) {
@@ -163,11 +175,40 @@ fun BackupsScreen(viewModel: BackupsViewModel) {
                 .fillMaxSize()
                 .padding(padding),
         ) {
+            com.proxpanel.app.ui.components.ActiveJobsBelowTitle()
             ProxSearchBar(
                 value = query,
                 onValueChange = { query = it },
                 placeholder = stringResource(R.string.backups_search_placeholder),
             )
+            if (state.scheduleJobs.isNotEmpty()) {
+                Spacer(Modifier.height(ProxSpace.sm))
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = ProxSpace.screen),
+                    verticalArrangement = Arrangement.spacedBy(ProxSpace.sm),
+                ) {
+                    Text(
+                        stringResource(R.string.backups_schedules_title),
+                        style = MaterialTheme.typography.titleSmall,
+                    )
+                    Text(
+                        stringResource(R.string.backups_schedules_subtitle),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    state.scheduleJobs.forEach { job ->
+                        ScheduleJobCard(job = job, guests = state.guests)
+                    }
+                }
+                Spacer(Modifier.height(ProxSpace.md))
+                Text(
+                    stringResource(R.string.backups_guests_section),
+                    style = MaterialTheme.typography.titleSmall,
+                    modifier = Modifier.padding(horizontal = ProxSpace.screen),
+                )
+            }
             Spacer(Modifier.height(ProxSpace.sm))
             PullToRefreshBox(
                 isRefreshing = state.refreshing,
@@ -529,7 +570,10 @@ private fun BackupDetailsDialog(
                     DetailRow(stringResource(R.string.backups_file), backupFileName(last.volid), mono = true)
                     DetailRow(stringResource(R.string.backups_volume), last.volid, mono = true)
                     last.notes?.takeIf { it.isNotBlank() }?.let {
-                        DetailRow(stringResource(R.string.backups_notes), it)
+                        DetailRow(
+                            stringResource(R.string.backups_notes),
+                            com.proxpanel.app.util.htmlToPlainText(it),
+                        )
                     }
                 }
                 Spacer(Modifier.height(ProxSpace.lg))
@@ -780,5 +824,94 @@ private fun SimpleDropdown(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun ScheduleJobCard(
+    job: BackupScheduleJob,
+    guests: List<BackupOverviewGuest>,
+) {
+    val context = LocalContext.current
+    val whenText = remember(job.schedule) { formatBackupSchedule(job.schedule, context) }
+    val whatText = remember(job, guests) { formatBackupSelection(job, guests, context) }
+    val modeText = remember(job.mode, job.compress) { formatBackupMode(job, context) }
+    val whereText = listOfNotNull(
+        job.storage?.takeIf { it.isNotBlank() },
+        job.node?.takeIf { it.isNotBlank() }?.let { context.getString(R.string.backups_schedule_on_node, it) },
+    ).joinToString(" · ").ifBlank { stringResource(R.string.empty_dash) }
+
+    ProxCard {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(ProxSpace.sm),
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(10.dp)
+                    .clip(CircleShape)
+                    .background(if (job.enabled) ProxGood else ProxMuted),
+            )
+            Text(
+                text = if (job.enabled) {
+                    stringResource(R.string.backups_schedule_active)
+                } else {
+                    stringResource(R.string.backups_schedule_disabled)
+                },
+                style = MaterialTheme.typography.labelMedium,
+                color = if (job.enabled) ProxGood else MaterialTheme.colorScheme.onSurfaceVariant,
+                fontWeight = FontWeight.Medium,
+            )
+        }
+        Spacer(Modifier.height(ProxSpace.sm))
+        Text(
+            text = whenText,
+            style = MaterialTheme.typography.titleMedium,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
+        if (!job.schedule.isNullOrBlank() && whenText != job.schedule) {
+            Text(
+                text = job.schedule,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        Spacer(Modifier.height(ProxSpace.sm))
+        ScheduleMetaRow(stringResource(R.string.backups_schedule_label_what), whatText)
+        ScheduleMetaRow(stringResource(R.string.backups_schedule_label_where), whereText)
+        ScheduleMetaRow(stringResource(R.string.backups_schedule_label_how), modeText)
+        if (!job.notes.isNullOrBlank()) {
+            ScheduleMetaRow(
+                stringResource(R.string.backups_schedule_label_notes),
+                com.proxpanel.app.util.htmlToPlainText(job.notes),
+            )
+        }
+    }
+}
+
+@Composable
+private fun ScheduleMetaRow(label: String, value: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = ProxSpace.xs),
+        horizontalArrangement = Arrangement.spacedBy(ProxSpace.sm),
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.width(72.dp),
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.weight(1f),
+            maxLines = 3,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }

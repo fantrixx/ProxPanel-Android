@@ -95,6 +95,7 @@ fun MediaScreen(viewModel: MediaViewModel) {
             ProxTopBar(
                 title = stringResource(R.string.media_title),
                 subtitle = stringResource(R.string.media_subtitle),
+                infoBody = stringResource(R.string.info_media),
                 embeddedInShell = true,
                 actions = {
                     IconButton(onClick = { appearanceOpen = true }) {
@@ -112,6 +113,7 @@ fun MediaScreen(viewModel: MediaViewModel) {
                 .fillMaxSize()
                 .padding(padding),
         ) {
+            com.proxpanel.app.ui.components.ActiveJobsBelowTitle()
             ProxSearchBar(
                 value = query,
                 onValueChange = { query = it },

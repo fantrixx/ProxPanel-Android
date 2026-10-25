@@ -327,15 +327,127 @@ class ApiClient(
         cores: Int? = null,
         memoryMb: Int? = null,
         swapMb: Int? = null,
+        tags: String? = null,
+        description: String? = null,
     ): OkResponse = withContext(Dispatchers.IO) {
         val kind = guestKind(type)
         val params = mutableMapOf<String, String>()
         if (cores != null) params["cores"] = cores.toString()
         if (memoryMb != null) params["memory"] = memoryMb.toString()
         if (swapMb != null && kind == "lxc") params["swap"] = swapMb.toString()
+        if (tags != null) params["tags"] = tags
+        if (description != null) params["description"] = description
         if (params.isEmpty()) return@withContext OkResponse(ok = true)
         requestForm("PUT", "/api2/json/nodes/${enc(node)}/$kind/$vmid/config", params)
         OkResponse(ok = true)
+    }
+
+    suspend fun migrateGuest(
+        node: String,
+        type: String,
+        vmid: Int,
+        target: String,
+        online: Boolean,
+        withLocalDisks: Boolean = true,
+    ): OkResponse = withContext(Dispatchers.IO) {
+        val kind = guestKind(type)
+        val params = mutableMapOf(
+            "target" to target,
+        )
+        if (online) params["online"] = "1"
+        if (withLocalDisks) params["with-local-disks"] = "1"
+        val text = requestForm(
+            "POST",
+            "/api2/json/nodes/${enc(node)}/$kind/$vmid/migrate",
+            params,
+        )
+        OkResponse(ok = true, upid = unwrapUpid(text))
+    }
+
+    suspend fun cloneGuest(
+        node: String,
+        type: String,
+        vmid: Int,
+        newid: Int,
+        name: String? = null,
+        target: String? = null,
+        full: Boolean = true,
+    ): OkResponse = withContext(Dispatchers.IO) {
+        val kind = guestKind(type)
+        val params = mutableMapOf(
+            "newid" to newid.toString(),
+            "full" to if (full) "1" else "0",
+        )
+        if (!name.isNullOrBlank()) params["name"] = name.trim()
+        if (!target.isNullOrBlank()) params["target"] = target.trim()
+        val text = requestForm(
+            "POST",
+            "/api2/json/nodes/${enc(node)}/$kind/$vmid/clone",
+            params,
+        )
+        OkResponse(ok = true, upid = unwrapUpid(text))
+    }
+
+    suspend fun convertToTemplate(node: String, type: String, vmid: Int): OkResponse =
+        withContext(Dispatchers.IO) {
+            val kind = guestKind(type)
+            requestForm("POST", "/api2/json/nodes/${enc(node)}/$kind/$vmid/template")
+            OkResponse(ok = true)
+        }
+
+    suspend fun listNodeNames(): List<String> = withContext(Dispatchers.IO) {
+        parseNodeNames(requestRaw("GET", "/api2/json/nodes"))
+    }
+
+    suspend fun backupJobs(): List<BackupScheduleJob> = withContext(Dispatchers.IO) {
+        val data = decodeDataElement(requestRaw("GET", "/api2/json/cluster/backup"))
+        val arr = data as? JsonArray ?: return@withContext emptyList()
+        arr.mapNotNull { el ->
+            val obj = el as? JsonObject ?: return@mapNotNull null
+            val id = obj.string("id") ?: return@mapNotNull null
+            val allRaw = obj.string("all") ?: obj["all"]?.toString()?.trim('"')
+            val allGuests = allRaw == "1" || allRaw.equals("true", ignoreCase = true) ||
+                obj.int("all") == 1
+            BackupScheduleJob(
+                id = id,
+                enabled = obj.int("enabled") != 0,
+                schedule = obj.string("schedule"),
+                storage = obj.string("storage"),
+                node = obj.string("node"),
+                selection = obj.string("vmid"),
+                allGuests = allGuests,
+                pool = obj.string("pool"),
+                mode = obj.string("mode"),
+                compress = obj.string("compress"),
+                notes = obj.string("comment") ?: obj.string("notes"),
+            )
+        }.sortedBy { it.id }
+    }
+
+    suspend fun haStatus(): List<HaResourceStatus> = withContext(Dispatchers.IO) {
+        val data = decodeDataElement(requestRaw("GET", "/api2/json/cluster/ha/status/current"))
+        val arr = data as? JsonArray ?: return@withContext emptyList()
+        arr.mapNotNull { el ->
+            val obj = el as? JsonObject ?: return@mapNotNull null
+            val sid = obj.string("sid") ?: return@mapNotNull null
+            // sid examples: "ct:101", "vm:100"
+            val type = when {
+                sid.startsWith("ct:", ignoreCase = true) -> "lxc"
+                sid.startsWith("vm:", ignoreCase = true) -> "qemu"
+                else -> obj.string("type")
+            }
+            val vmid = sid.substringAfter(':', missingDelimiterValue = "")
+                .toIntOrNull()
+                ?: obj.string("id")?.toIntOrNull()
+            HaResourceStatus(
+                sid = sid,
+                state = obj.string("state") ?: obj.string("status"),
+                status = obj.string("status"),
+                node = obj.string("node"),
+                type = type,
+                vmid = vmid,
+            )
+        }
     }
 
     suspend fun tasks(limit: Int = 80): List<PveTask> = withContext(Dispatchers.IO) {

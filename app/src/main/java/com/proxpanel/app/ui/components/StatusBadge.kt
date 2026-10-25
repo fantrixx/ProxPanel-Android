@@ -66,7 +66,8 @@ fun StatusBadge(
         StatusTone.Accent -> MaterialTheme.colorScheme.primary
         StatusTone.Muted -> ProxMuted
     }
-    val wantPulse = tone == StatusTone.Warn || tone == StatusTone.Accent
+    // Running (green) + transitioning states pulse; stopped stays static.
+    val wantPulse = tone == StatusTone.Good || tone == StatusTone.Warn || tone == StatusTone.Accent
     // Only subscribe to the scroll gate when a pulse would run — otherwise every
     // running badge would recompose on fling start and hitch the list.
     val scrolling = if (wantPulse) {

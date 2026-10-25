@@ -26,8 +26,9 @@ import com.proxpanel.app.AppContainer
 import com.proxpanel.app.data.GuestItem
 import com.proxpanel.app.ui.backups.BackupsScreen
 import com.proxpanel.app.ui.backups.BackupsViewModel
-import com.proxpanel.app.ui.components.ActiveJobsBanner
+import com.proxpanel.app.ui.components.ActiveJobsChrome
 import com.proxpanel.app.ui.components.JobToastHost
+import com.proxpanel.app.ui.components.LocalActiveJobsChrome
 import com.proxpanel.app.ui.components.SuccessBurstOverlay
 import com.proxpanel.app.ui.guests.GuestsScreen
 import com.proxpanel.app.ui.guests.GuestsViewModel
@@ -65,9 +66,24 @@ fun HomeShell(
     val jobTracker = container.jobTracker
     val scrollSession = remember { ListScrollSession() }
 
+    val jobsChrome = ActiveJobsChrome(
+        tracker = jobTracker,
+        onOpenTasks = {
+            tabNav.navigate(HomeTab.Tasks.route) {
+                popUpTo(tabNav.graph.findStartDestination().id) { saveState = true }
+                launchSingleTop = true
+                restoreState = true
+            }
+        },
+    )
+
     // Provide the session object only — never `session.scrolling` here, or the
     // whole NavHost recomposes on every fling start/stop.
-    CompositionLocalProvider(LocalListScrollSession provides scrollSession) {
+    // Job banner lives below each screen title via LocalActiveJobsChrome.
+    CompositionLocalProvider(
+        LocalListScrollSession provides scrollSession,
+        LocalActiveJobsChrome provides jobsChrome,
+    ) {
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -78,17 +94,6 @@ fun HomeShell(
                 .fillMaxSize()
                 .statusBarsPadding(),
         ) {
-            ActiveJobsBanner(
-                tracker = jobTracker,
-                onOpenTasks = {
-                    tabNav.navigate(HomeTab.Tasks.route) {
-                        popUpTo(tabNav.graph.findStartDestination().id) { saveState = true }
-                        launchSingleTop = true
-                        restoreState = true
-                    }
-                },
-            )
-
             Box(modifier = Modifier.weight(1f)) {
                 NavHost(
                     navController = tabNav,
@@ -158,9 +163,18 @@ fun HomeShell(
                     }
                     composable(HomeTab.Settings.route) {
                         val vm: SettingsViewModel = viewModel(
-                            factory = SettingsViewModel.factory(container.prefsStore),
+                            factory = SettingsViewModel.factory(
+                                container.prefsStore,
+                                container.serverProfileStore,
+                                container.sessionStore,
+                                container.credentialStore,
+                                container.api,
+                            ),
                         )
-                        SettingsScreen(viewModel = vm)
+                        SettingsScreen(
+                            viewModel = vm,
+                            onSwitchServer = onLogout,
+                        )
                     }
                 }
 

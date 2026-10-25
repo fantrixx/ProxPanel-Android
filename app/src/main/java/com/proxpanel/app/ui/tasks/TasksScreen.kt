@@ -116,6 +116,7 @@ fun TasksScreen(viewModel: TasksViewModel) {
                 } else {
                     null
                 },
+                infoBody = stringResource(R.string.info_tasks),
                 embeddedInShell = true,
                 actions = {
                     IconButton(onClick = { appearanceOpen = true }) {
@@ -133,6 +134,7 @@ fun TasksScreen(viewModel: TasksViewModel) {
                 .fillMaxSize()
                 .padding(padding),
         ) {
+            com.proxpanel.app.ui.components.ActiveJobsBelowTitle()
             ProxSearchBar(
                 value = state.query,
                 onValueChange = viewModel::setQuery,

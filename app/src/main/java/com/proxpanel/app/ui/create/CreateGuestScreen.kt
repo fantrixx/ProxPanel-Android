@@ -88,6 +88,7 @@ fun CreateGuestScreen(
             ProxTopBar(
                 title = if (state.type == CreateGuestType.Lxc) stringResource(R.string.create_title_lxc) else stringResource(R.string.create_title_vm),
                 subtitle = stringResource(R.string.create_subtitle),
+                infoBody = stringResource(R.string.info_create),
                 navigationIcon = {
                     IconButton(onClick = onBack, enabled = !state.busy) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back))

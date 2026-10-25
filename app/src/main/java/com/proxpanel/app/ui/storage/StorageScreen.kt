@@ -111,6 +111,7 @@ fun StorageScreen(viewModel: StorageViewModel) {
             ProxTopBar(
                 title = stringResource(R.string.storage_title),
                 subtitle = stringResource(R.string.storage_subtitle),
+                infoBody = stringResource(R.string.info_storage),
                 embeddedInShell = true,
                 actions = {
                     IconButton(onClick = { appearanceOpen = true }) {
@@ -128,6 +129,7 @@ fun StorageScreen(viewModel: StorageViewModel) {
                 .fillMaxSize()
                 .padding(padding),
         ) {
+            com.proxpanel.app.ui.components.ActiveJobsBelowTitle()
             ProxSearchBar(
                 value = query,
                 onValueChange = { query = it },

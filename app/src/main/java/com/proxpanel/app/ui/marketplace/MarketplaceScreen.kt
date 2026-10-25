@@ -26,6 +26,8 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.outlined.Storefront
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -59,6 +61,8 @@ import com.proxpanel.app.ui.components.ProxTopBar
 import com.proxpanel.app.ui.theme.ProxSpace
 import com.proxpanel.app.ui.util.rememberAppHaptics
 import kotlinx.coroutines.launch
+import java.text.NumberFormat
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -99,6 +103,7 @@ fun MarketplaceScreen(viewModel: MarketplaceViewModel) {
             ProxTopBar(
                 title = stringResource(R.string.apps_title),
                 subtitle = stringResource(R.string.apps_subtitle),
+                infoBody = stringResource(R.string.info_apps),
                 embeddedInShell = true,
                 actions = {
                     IconButton(onClick = { appearanceOpen = true }) {
@@ -117,12 +122,43 @@ fun MarketplaceScreen(viewModel: MarketplaceViewModel) {
                 .fillMaxSize()
                 .padding(padding),
         ) {
+            com.proxpanel.app.ui.components.ActiveJobsBelowTitle()
             ProxSearchBar(
                 value = state.query,
                 onValueChange = viewModel::setQuery,
                 placeholder = stringResource(R.string.apps_search_placeholder),
             )
-            Spacer(Modifier.height(ProxSpace.sm))
+            Row(
+                modifier = Modifier.padding(horizontal = ProxSpace.screen, vertical = ProxSpace.sm),
+                horizontalArrangement = Arrangement.spacedBy(ProxSpace.sm),
+            ) {
+                FilterChip(
+                    selected = state.sort == MarketplaceSort.Popular,
+                    onClick = {
+                        haptics.tick()
+                        viewModel.setSort(MarketplaceSort.Popular)
+                    },
+                    label = { Text(stringResource(R.string.apps_sort_popular)) },
+                    shape = MaterialTheme.shapes.small,
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                        selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    ),
+                )
+                FilterChip(
+                    selected = state.sort == MarketplaceSort.Name,
+                    onClick = {
+                        haptics.tick()
+                        viewModel.setSort(MarketplaceSort.Name)
+                    },
+                    label = { Text(stringResource(R.string.apps_sort_name)) },
+                    shape = MaterialTheme.shapes.small,
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                        selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    ),
+                )
+            }
             Text(
                 stringResource(R.string.apps_install_hint),
                 style = MaterialTheme.typography.bodySmall,
@@ -242,6 +278,14 @@ private fun ScriptCard(
                 overflow = TextOverflow.Ellipsis,
             )
         }
+        if (script.installs > 0) {
+            Spacer(Modifier.height(ProxSpace.xs))
+            Text(
+                stringResource(R.string.apps_installs, formatInstalls(script.installs)),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
         Row {
             IconButton(onClick = onCopy) {
                 Icon(Icons.Default.ContentCopy, contentDescription = stringResource(R.string.action_copy))
@@ -285,6 +329,14 @@ private fun ScriptCompactRow(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
+                if (script.installs > 0) {
+                    Text(
+                        stringResource(R.string.apps_installs, formatInstalls(script.installs)),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                    )
+                }
             }
             IconButton(onClick = onCopy) {
                 Icon(Icons.Default.ContentCopy, contentDescription = stringResource(R.string.action_copy))
@@ -295,3 +347,6 @@ private fun ScriptCompactRow(
         }
     }
 }
+
+private fun formatInstalls(count: Int): String =
+    NumberFormat.getIntegerInstance(Locale.getDefault()).format(count)

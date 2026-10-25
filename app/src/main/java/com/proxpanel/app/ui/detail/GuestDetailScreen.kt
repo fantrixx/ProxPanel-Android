@@ -175,6 +175,7 @@ fun GuestDetailScreen(
             ProxTopBar(
                 title = state.guest.name,
                 subtitle = "${state.guest.node} · ${state.guest.vmid}",
+                infoBody = stringResource(R.string.info_detail),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back))
@@ -353,10 +354,46 @@ private fun OverviewTab(
         }
     }
 
+    DetailSection(stringResource(R.string.section_meta)) {
+        OutlinedTextField(
+            value = state.tagsInput,
+            onValueChange = viewModel::setTags,
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text(stringResource(R.string.detail_field_tags)) },
+            placeholder = { Text(stringResource(R.string.detail_tags_hint)) },
+            singleLine = true,
+            shape = MaterialTheme.shapes.small,
+            colors = fieldColors(),
+        )
+        Spacer(Modifier.height(ProxSpace.sm))
+        OutlinedTextField(
+            value = state.notesInput,
+            onValueChange = viewModel::setNotes,
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text(stringResource(R.string.detail_field_notes)) },
+            minLines = 2,
+            maxLines = 4,
+            shape = MaterialTheme.shapes.small,
+            colors = fieldColors(),
+        )
+        Spacer(Modifier.height(ProxSpace.sm))
+        Button(
+            onClick = viewModel::saveTagsAndNotes,
+            enabled = !state.busy,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(stringResource(R.string.action_save))
+        }
+    }
+
     DetailSection(stringResource(R.string.section_actions)) {
         val enabled = !state.busy && !state.backupRunning
         var backupMenuOpen by remember { mutableStateOf(false) }
+        var migrateOpen by remember { mutableStateOf(false) }
+        var cloneOpen by remember { mutableStateOf(false) }
+        var templateConfirm by remember { mutableStateOf(false) }
         val storages = state.backupStorages.map { it.storage }.distinct()
+        val targets = state.nodeOptions.filter { it != state.guest.node }
 
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -417,12 +454,245 @@ private fun OverviewTab(
                 }
             }
         }
+
+        Spacer(Modifier.height(ProxSpace.md))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(ProxSpace.sm),
+        ) {
+            OutlinedButton(
+                onClick = { migrateOpen = true },
+                enabled = enabled && targets.isNotEmpty(),
+                modifier = Modifier.weight(1f),
+            ) {
+                Text(stringResource(R.string.action_migrate))
+            }
+            OutlinedButton(
+                onClick = { cloneOpen = true },
+                enabled = enabled,
+                modifier = Modifier.weight(1f),
+            ) {
+                Text(stringResource(R.string.action_clone))
+            }
+        }
+        Spacer(Modifier.height(ProxSpace.sm))
+        OutlinedButton(
+            onClick = { templateConfirm = true },
+            enabled = enabled && !state.guest.isRunning,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(stringResource(R.string.action_to_template))
+        }
+
         if (state.backupRunning) {
             Spacer(Modifier.height(ProxSpace.md))
             GuestBackupProgressBlock(
                 progress = null,
                 label = if (state.busy) stringResource(R.string.starting_ellipsis) else stringResource(R.string.backing_up_ellipsis),
             )
+        }
+
+        if (migrateOpen) {
+            MigrateDialog(
+                nodes = targets,
+                onlineDefault = state.guest.isRunning,
+                onDismiss = { migrateOpen = false },
+                onConfirm = { target, online, withDisks ->
+                    migrateOpen = false
+                    viewModel.migrateGuest(target, online, withDisks)
+                },
+            )
+        }
+        if (cloneOpen) {
+            CloneDialog(
+                viewModel = viewModel,
+                nodes = state.nodeOptions,
+                currentNode = state.guest.node,
+                defaultName = state.guest.name,
+                onDismiss = { cloneOpen = false },
+                onConfirm = { newid, name, target, full ->
+                    cloneOpen = false
+                    viewModel.cloneGuest(newid, name, target, full)
+                },
+            )
+        }
+        if (templateConfirm) {
+            AlertDialog(
+                onDismissRequest = { templateConfirm = false },
+                title = { Text(stringResource(R.string.confirm_template_title)) },
+                text = { Text(stringResource(R.string.confirm_template_body, state.guest.name)) },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            templateConfirm = false
+                            viewModel.convertToTemplate()
+                        },
+                    ) {
+                        Text(stringResource(R.string.action_to_template))
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { templateConfirm = false }) {
+                        Text(stringResource(R.string.action_cancel))
+                    }
+                },
+            )
+        }
+    }
+}
+
+@Composable
+private fun MigrateDialog(
+    nodes: List<String>,
+    onlineDefault: Boolean,
+    onDismiss: () -> Unit,
+    onConfirm: (target: String, online: Boolean, withLocalDisks: Boolean) -> Unit,
+) {
+    var target by remember { mutableStateOf(nodes.firstOrNull().orEmpty()) }
+    var online by remember { mutableStateOf(onlineDefault) }
+    var withDisks by remember { mutableStateOf(true) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.migrate_title)) },
+        text = {
+            Column {
+                SimpleDropdown(
+                    label = stringResource(R.string.migrate_target_node),
+                    value = target,
+                    options = nodes,
+                    onSelect = { target = it },
+                )
+                Spacer(Modifier.height(ProxSpace.sm))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(checked = online, onCheckedChange = { online = it })
+                    Text(stringResource(R.string.migrate_online))
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(checked = withDisks, onCheckedChange = { withDisks = it })
+                    Text(stringResource(R.string.migrate_with_disks))
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onConfirm(target, online, withDisks) },
+                enabled = target.isNotBlank(),
+            ) {
+                Text(stringResource(R.string.action_migrate))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.action_cancel))
+            }
+        },
+    )
+}
+
+@Composable
+private fun CloneDialog(
+    viewModel: GuestDetailViewModel,
+    nodes: List<String>,
+    currentNode: String,
+    defaultName: String,
+    onDismiss: () -> Unit,
+    onConfirm: (newid: Int, name: String?, target: String?, full: Boolean) -> Unit,
+) {
+    var newid by remember { mutableStateOf("") }
+    var name by remember { mutableStateOf("$defaultName-clone") }
+    var target by remember { mutableStateOf(currentNode) }
+    var full by remember { mutableStateOf(true) }
+    LaunchedEffect(Unit) {
+        newid = viewModel.suggestNextId().toString()
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.clone_title)) },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = newid,
+                    onValueChange = { newid = it.filter { ch -> ch.isDigit() } },
+                    label = { Text(stringResource(R.string.clone_new_vmid)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = fieldColors(),
+                )
+                Spacer(Modifier.height(ProxSpace.sm))
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text(stringResource(R.string.clone_name)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = fieldColors(),
+                )
+                Spacer(Modifier.height(ProxSpace.sm))
+                if (nodes.isNotEmpty()) {
+                    SimpleDropdown(
+                        label = stringResource(R.string.clone_target_node),
+                        value = target,
+                        options = nodes,
+                        onSelect = { target = it },
+                    )
+                    Spacer(Modifier.height(ProxSpace.sm))
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(checked = full, onCheckedChange = { full = it })
+                    Text(stringResource(R.string.clone_full_copy))
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    val id = newid.toIntOrNull() ?: return@TextButton
+                    onConfirm(id, name.trim().ifBlank { null }, target.ifBlank { null }, full)
+                },
+                enabled = newid.toIntOrNull() != null,
+            ) {
+                Text(stringResource(R.string.action_clone))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.action_cancel))
+            }
+        },
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SimpleDropdown(
+    label: String,
+    value: String,
+    options: List<String>,
+    onSelect: (String) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
+        OutlinedTextField(
+            value = value,
+            onValueChange = {},
+            readOnly = true,
+            label = { Text(label) },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .menuAnchor(MenuAnchorType.PrimaryNotEditable),
+            colors = fieldColors(),
+        )
+        ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            options.forEach { option ->
+                DropdownMenuItem(
+                    text = { Text(option) },
+                    onClick = {
+                        onSelect(option)
+                        expanded = false
+                    },
+                )
+            }
         }
     }
 }

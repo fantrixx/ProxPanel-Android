@@ -1,5 +1,11 @@
 package com.proxpanel.app.ui.guests
 
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -72,6 +78,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -86,6 +93,7 @@ import com.proxpanel.app.data.guestIconKey
 import com.proxpanel.app.data.NodesViewMode
 import com.proxpanel.app.jobs.GuestJobProgress
 import com.proxpanel.app.jobs.JobTracker
+import com.proxpanel.app.ui.components.ActiveJobsBelowTitle
 import com.proxpanel.app.ui.components.AppearanceDialog
 import com.proxpanel.app.ui.components.ClusterOverviewBar
 import com.proxpanel.app.ui.components.GuestBackupProgressBlock
@@ -270,6 +278,7 @@ fun GuestsScreen(
                 subtitle = state.user?.let {
                     "${it.username} · ${it.host.removePrefix("https://").removePrefix("http://")}"
                 },
+                infoBody = stringResource(R.string.info_guests),
                 embeddedInShell = true,
                 actions = {
                     IconButton(onClick = { appearanceOpen = true }) {
@@ -293,6 +302,7 @@ fun GuestsScreen(
                 .padding(padding),
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
+                ActiveJobsBelowTitle()
                 ProxSearchBar(
                     value = query,
                     onValueChange = { query = it },
@@ -304,21 +314,6 @@ fun GuestsScreen(
                     ClusterOverviewBar(
                         overview = state.cluster,
                         pulsing = state.refreshPulse || state.refreshing,
-                    )
-                }
-
-                if (state.guests.isNotEmpty()) {
-                    val filtersDefault =
-                        kindFilter == GuestKindFilter.All && statusFilter == GuestStatusFilter.All
-                    Text(
-                        text = if (query.isBlank() && filtersDefault) {
-                            stringResource(R.string.guests_count, state.guests.size)
-                        } else {
-                            stringResource(R.string.guests_count_filtered, guests.size, state.guests.size)
-                        },
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = ProxSpace.screen + 4.dp, vertical = ProxSpace.sm),
                     )
                 }
 
@@ -709,6 +704,12 @@ private fun GuestCard(
                         pending = pendingVisual,
                     )
                     KindChip(text = guest.kindLabel, kind = guest.type)
+                    if (!guest.haState.isNullOrBlank()) {
+                        TransitionChip(
+                            text = stringResource(R.string.ha_badge, guest.haState!!),
+                            accent = true,
+                        )
+                    }
                     Spacer(Modifier.weight(1f))
                     IconButton(
                         onClick = onTogglePin,
@@ -879,6 +880,7 @@ private fun GuestCard(
                     tint = ProxGood,
                     enabled = !actionsLocked,
                     onClick = { onPower("start") },
+                    pulse = true,
                 )
             }
 
@@ -1030,6 +1032,7 @@ private fun GuestTile(
                     tint = ProxGood,
                     enabled = !locked,
                     onClick = { onPower("start") },
+                    pulse = true,
                 )
                 Spacer(Modifier.width(1.dp))
             }
@@ -1139,11 +1142,11 @@ private fun GuestCompactRow(
             }
             if (guest.isRunning || pending?.action == "reboot") {
                 GuestActionIcon(
-                    icon = Icons.Default.RestartAlt,
-                    contentDescription = stringResource(R.string.power_reboot),
+                    icon = Icons.Default.PowerSettingsNew,
+                    contentDescription = stringResource(R.string.power_shutdown),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     enabled = !locked,
-                    onClick = { onPower("reboot") },
+                    onClick = { onPower("shutdown") },
                 )
             } else {
                 GuestActionIcon(
@@ -1152,6 +1155,7 @@ private fun GuestCompactRow(
                     tint = ProxGood,
                     enabled = !locked,
                     onClick = { onPower("start") },
+                    pulse = true,
                 )
             }
             GuestActionIcon(
@@ -1216,8 +1220,15 @@ private fun GuestActionIcon(
     onClick: () -> Unit,
     loading: Boolean = false,
     progressLabel: String? = null,
+    pulse: Boolean = false,
 ) {
     val interaction = remember { MutableInteractionSource() }
+    val wantPulse = pulse && enabled && !loading
+    val scrolling = if (wantPulse) {
+        com.proxpanel.app.ui.util.LocalListScrollSession.current.scrolling
+    } else {
+        false
+    }
     Box(
         modifier = Modifier
             .size(40.dp)
@@ -1240,6 +1251,8 @@ private fun GuestActionIcon(
                     Text(progressLabel, style = MaterialTheme.typography.labelSmall, color = tint)
                 }
             }
+        } else if (wantPulse && !scrolling) {
+            PulsingActionIcon(icon = icon, contentDescription = contentDescription, tint = tint)
         } else {
             Icon(
                 imageVector = icon,
@@ -1249,4 +1262,30 @@ private fun GuestActionIcon(
             )
         }
     }
+}
+
+@Composable
+private fun PulsingActionIcon(
+    icon: ImageVector,
+    contentDescription: String,
+    tint: Color,
+) {
+    val transition = rememberInfiniteTransition(label = "action-pulse")
+    val pulseAlpha by transition.animateFloat(
+        initialValue = 0.55f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(900, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "action-a",
+    )
+    Icon(
+        imageVector = icon,
+        contentDescription = contentDescription,
+        modifier = Modifier
+            .size(22.dp)
+            .graphicsLayer { alpha = pulseAlpha },
+        tint = tint,
+    )
 }
