@@ -48,6 +48,32 @@ class BackupsViewModel(
     /** Optimistically marked until API reports the task, then until it finishes. */
     private val localRunning = mutableSetOf<String>()
     private val seenOnApi = mutableSetOf<String>()
+    @Volatile private var listScrolling = false
+    private val scrollLock = Any()
+    private var heldState: BackupsUiState? = null
+
+    fun setListScrolling(scrolling: Boolean) {
+        synchronized(scrollLock) {
+            if (listScrolling == scrolling) return
+            listScrolling = scrolling
+            if (!scrolling) {
+                val pending = heldState
+                heldState = null
+                if (pending != null) _state.value = pending
+            }
+        }
+    }
+
+    private fun publishBackground(transform: (BackupsUiState) -> BackupsUiState) {
+        synchronized(scrollLock) {
+            val base = heldState ?: _state.value
+            val next = transform(base)
+            if (listScrolling) heldState = next else {
+                heldState = null
+                _state.value = next
+            }
+        }
+    }
 
     init {
         viewModelScope.launch {
@@ -201,7 +227,7 @@ class BackupsViewModel(
                 val running = runCatching { syncRunningKeys() }.getOrNull() ?: continue
                 if (running == prev) continue
                 val finished = prev - running
-                _state.update {
+                publishBackground {
                     it.copy(
                         runningKeys = running,
                         message = when {
@@ -213,7 +239,7 @@ class BackupsViewModel(
                 if (finished.isNotEmpty()) {
                     runCatching {
                         val guests = api.backupsOverview()
-                        _state.update { it.copy(guests = guests) }
+                        publishBackground { it.copy(guests = guests) }
                     }
                 }
             }

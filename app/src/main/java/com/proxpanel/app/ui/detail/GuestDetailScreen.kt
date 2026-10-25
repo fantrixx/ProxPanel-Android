@@ -110,6 +110,15 @@ fun GuestDetailScreen(
     val snackbar = remember { SnackbarHostState() }
     val context = LocalContext.current
     var iconPickerOpen by remember { mutableStateOf(false) }
+    val scrollState = rememberScrollState()
+    val scrollSession = remember { com.proxpanel.app.ui.util.ListScrollSession() }
+    com.proxpanel.app.ui.util.rememberColumnScrollFreeze(
+        scrollState = scrollState,
+        onScrolling = {
+            scrollSession.update(it)
+            viewModel.setListScrolling(it)
+        },
+    )
 
     if (iconPickerOpen) {
         GuestIconPicker(
@@ -134,6 +143,9 @@ fun GuestDetailScreen(
         }
     }
 
+    androidx.compose.runtime.CompositionLocalProvider(
+        com.proxpanel.app.ui.util.LocalListScrollSession provides scrollSession,
+    ) {
     state.confirm?.let { confirm ->
         AlertDialog(
             onDismissRequest = viewModel::dismissConfirm,
@@ -192,7 +204,7 @@ fun GuestDetailScreen(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
+                    .verticalScroll(scrollState)
                     .padding(horizontal = ProxSpace.screen)
                     .padding(top = ProxSpace.md, bottom = ProxSpace.xxl),
                 verticalArrangement = Arrangement.spacedBy(ProxSpace.md),
@@ -210,6 +222,7 @@ fun GuestDetailScreen(
                 }
             }
         }
+    }
     }
 }
 

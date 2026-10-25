@@ -7,6 +7,7 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -87,6 +88,13 @@ fun MetricBar(
     progress: Float,
     modifier: Modifier = Modifier,
 ) {
+    val pct = (progress.coerceIn(0f, 100f) / 100f)
+    val barColor = when {
+        progress >= 90f -> ProxBad
+        progress >= 75f -> ProxWarn
+        else -> MaterialTheme.colorScheme.primary
+    }
+    val track = MaterialTheme.colorScheme.surfaceContainerHighest
     Column(modifier = modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -105,19 +113,21 @@ fun MetricBar(
             )
         }
         Spacer(Modifier.height(8.dp))
-        LinearProgressIndicator(
-            progress = { progress.coerceIn(0f, 100f) / 100f },
+        // Plain boxes — LinearProgressIndicator was noticeably heavier in long lists.
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(7.dp)
-                .clip(MaterialTheme.shapes.extraSmall),
-            color = when {
-                progress >= 90f -> ProxBad
-                progress >= 75f -> ProxWarn
-                else -> MaterialTheme.colorScheme.primary
-            },
-            trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-        )
+                .clip(MaterialTheme.shapes.extraSmall)
+                .background(track),
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(pct)
+                    .height(7.dp)
+                    .background(barColor),
+            )
+        }
     }
 }
 
@@ -145,16 +155,7 @@ fun KindChip(text: String, kind: String? = null) {
 
 @Composable
 fun BackupRunningBanner(modifier: Modifier = Modifier, label: String = "Backup läuft…") {
-    val pulse = rememberInfiniteTransition(label = "backup-pulse")
-    val alpha by pulse.animateFloat(
-        initialValue = 0.45f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(900, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse,
-        ),
-        label = "backup-alpha",
-    )
+    val scrolling = com.proxpanel.app.ui.util.LocalListScrollSession.current.scrolling
     Column(modifier = modifier.fillMaxWidth()) {
         LinearProgressIndicator(
             modifier = Modifier
@@ -172,14 +173,37 @@ fun BackupRunningBanner(modifier: Modifier = Modifier, label: String = "Backup l
                 color = MaterialTheme.colorScheme.primary,
             )
             Spacer(Modifier.width(ProxSpace.sm))
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.graphicsLayer { this.alpha = alpha },
-            )
+            if (scrolling) {
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            } else {
+                PulsingBackupLabel(label)
+            }
         }
     }
+}
+
+@Composable
+private fun PulsingBackupLabel(label: String) {
+    val pulse = rememberInfiniteTransition(label = "backup-pulse")
+    val alpha by pulse.animateFloat(
+        initialValue = 0.45f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(900, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "backup-alpha",
+    )
+    Text(
+        text = label,
+        style = MaterialTheme.typography.labelLarge,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.graphicsLayer { this.alpha = alpha },
+    )
 }
 
 @Composable
@@ -189,6 +213,36 @@ fun SectionLabel(text: String) {
         style = MaterialTheme.typography.labelSmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.padding(bottom = ProxSpace.sm, top = ProxSpace.xs),
+    )
+}
+
+/**
+ * List/tile shell without Material [androidx.compose.material3.Surface].
+ * Surface allocates elevation, ripple and outline per item — that hitch shows up
+ * exactly when a new tile is composed during a fling.
+ */
+@Composable
+fun ProxListCard(
+    modifier: Modifier = Modifier,
+    borderColor: Color = Color.Transparent,
+    borderWidth: androidx.compose.ui.unit.Dp = 1.dp,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    val shape = MaterialTheme.shapes.medium
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(MaterialTheme.colorScheme.surfaceContainer)
+            .then(
+                if (borderColor.alpha > 0.02f && borderWidth > 0.dp) {
+                    Modifier.border(borderWidth, borderColor, shape)
+                } else {
+                    Modifier
+                },
+            )
+            .padding(ProxSpace.card),
+        content = content,
     )
 }
 

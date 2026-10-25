@@ -84,6 +84,18 @@ fun BackupsScreen(viewModel: BackupsViewModel) {
     var detailsGuest by remember { mutableStateOf<BackupOverviewGuest?>(null) }
     var startGuest by remember { mutableStateOf<BackupOverviewGuest?>(null) }
     var appearanceOpen by remember { mutableStateOf(false) }
+    val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+    val gridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
+    val scrollSession = com.proxpanel.app.ui.util.LocalListScrollSession.current
+    com.proxpanel.app.ui.util.rememberListScrollFreeze(
+        listState = listState,
+        gridState = gridState,
+        useGrid = state.viewMode == NodesViewMode.Grid,
+        onScrolling = { scrolling ->
+            scrollSession.update(scrolling)
+            viewModel.setListScrolling(scrolling)
+        },
+    )
 
     LaunchedEffect(state.message, state.error) {
         state.message?.let {
@@ -172,6 +184,7 @@ fun BackupsScreen(viewModel: BackupsViewModel) {
                         when (state.viewMode) {
                             NodesViewMode.Cards -> {
                                 LazyColumn(
+                                    state = listState,
                                     contentPadding = ProxListPadding,
                                     verticalArrangement = Arrangement.spacedBy(ProxSpace.listGap),
                                 ) {
@@ -190,6 +203,7 @@ fun BackupsScreen(viewModel: BackupsViewModel) {
                             NodesViewMode.Grid -> {
                                 LazyVerticalGrid(
                                     columns = GridCells.Fixed(2),
+                                    state = gridState,
                                     contentPadding = ProxListPadding,
                                     verticalArrangement = Arrangement.spacedBy(ProxSpace.listGap),
                                     horizontalArrangement = Arrangement.spacedBy(ProxSpace.listGap),
@@ -209,6 +223,7 @@ fun BackupsScreen(viewModel: BackupsViewModel) {
                             }
                             NodesViewMode.Compact -> {
                                 LazyColumn(
+                                    state = listState,
                                     contentPadding = ProxListPadding,
                                     verticalArrangement = Arrangement.spacedBy(ProxSpace.sm),
                                 ) {

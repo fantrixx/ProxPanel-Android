@@ -42,6 +42,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -110,6 +111,22 @@ fun JobProgressBar(
 
 @Composable
 private fun IndeterminateSweep(color: Color) {
+    val scrolling = com.proxpanel.app.ui.util.LocalListScrollSession.current.scrolling
+    if (scrolling) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(10.dp)
+                .clip(RoundedCornerShape(999.dp))
+                .background(color.copy(alpha = 0.45f)),
+        )
+        return
+    }
+    AnimatedIndeterminateSweep(color)
+}
+
+@Composable
+private fun AnimatedIndeterminateSweep(color: Color) {
     val density = LocalDensity.current
     var widthPx by remember { mutableStateOf(0) }
     val transition = rememberInfiniteTransition(label = "job-sweep")
@@ -149,7 +166,14 @@ fun ActiveJobsBanner(
     modifier: Modifier = Modifier,
 ) {
     val jobs by tracker.jobs.collectAsState()
-    val snaps by tracker.snapshots.collectAsState()
+    val snapsLive by tracker.snapshots.collectAsState()
+    val scrolling = com.proxpanel.app.ui.util.LocalListScrollSession.current.scrolling
+    // Hold snapshot ticks while a tab list is flinging — banner stays, no mid-scroll churn.
+    var frozenSnaps by remember { mutableStateOf(snapsLive) }
+    LaunchedEffect(scrolling, snapsLive) {
+        if (!scrolling) frozenSnaps = snapsLive
+    }
+    val snaps = if (scrolling) frozenSnaps else snapsLive
     if (jobs.isEmpty()) return
 
     Surface(
@@ -309,16 +333,11 @@ private fun JobBannerRow(
         else -> "ok"
     }
     val title = if (snap.running) job.title else localizedKindLabel(job.kind, phase)
-    val pulse = rememberInfiniteTransition(label = "job-pulse")
-    val pulseAlpha by pulse.animateFloat(
-        initialValue = 0.55f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(900, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse,
-        ),
-        label = "pulse-a",
-    )
+    val scrolling = if (snap.running) {
+        com.proxpanel.app.ui.util.LocalListScrollSession.current.scrolling
+    } else {
+        false
+    }
 
     Column(
         modifier = Modifier
@@ -329,7 +348,9 @@ private fun JobBannerRow(
             ),
     ) {
         Row(verticalAlignment = Alignment.Top) {
-            Box(modifier = Modifier.graphicsLayer { alpha = if (snap.running) pulseAlpha else 1f }) {
+            if (snap.running && !scrolling) {
+                PulsingJobIcon(running = true, failed = snap.failed)
+            } else {
                 JobStatusIcon(running = snap.running, failed = snap.failed)
             }
             Spacer(Modifier.width(ProxSpace.md))
@@ -398,6 +419,23 @@ private fun JobStatusIcon(running: Boolean, failed: Boolean) {
         )
         failed -> Icon(Icons.Default.Error, contentDescription = null, tint = ProxBad, modifier = Modifier.size(20.dp))
         else -> Icon(Icons.Default.CheckCircle, contentDescription = null, tint = ProxGood, modifier = Modifier.size(20.dp))
+    }
+}
+
+@Composable
+private fun PulsingJobIcon(running: Boolean, failed: Boolean) {
+    val pulse = rememberInfiniteTransition(label = "job-pulse")
+    val pulseAlpha by pulse.animateFloat(
+        initialValue = 0.55f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(900, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "pulse-a",
+    )
+    Box(modifier = Modifier.graphicsLayer { alpha = pulseAlpha }) {
+        JobStatusIcon(running = running, failed = failed)
     }
 }
 

@@ -66,6 +66,15 @@ fun StorageScreen(viewModel: StorageViewModel) {
     val haptics = rememberAppHaptics()
     var query by remember { mutableStateOf("") }
     var appearanceOpen by remember { mutableStateOf(false) }
+    val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+    val gridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
+    val scrollSession = com.proxpanel.app.ui.util.LocalListScrollSession.current
+    com.proxpanel.app.ui.util.rememberListScrollFreeze(
+        listState = listState,
+        gridState = gridState,
+        useGrid = state.viewMode == NodesViewMode.Grid,
+        onScrolling = scrollSession::update,
+    )
     val q = query.trim().lowercase()
     val nodes = remember(state.nodes, q) {
         if (q.isEmpty()) state.nodes
@@ -143,16 +152,19 @@ fun StorageScreen(viewModel: StorageViewModel) {
                                 nodes = nodes,
                                 storages = storages,
                                 error = state.error,
+                                listState = listState,
                             )
                             NodesViewMode.Grid -> StorageGridList(
                                 nodes = nodes,
                                 storages = storages,
                                 error = state.error,
+                                gridState = gridState,
                             )
                             NodesViewMode.Compact -> StorageCompactList(
                                 nodes = nodes,
                                 storages = storages,
                                 error = state.error,
+                                listState = listState,
                             )
                         }
                     }
@@ -167,8 +179,10 @@ private fun StorageCardsList(
     nodes: List<ClusterResource>,
     storages: List<ClusterResource>,
     error: String?,
+    listState: androidx.compose.foundation.lazy.LazyListState,
 ) {
     LazyColumn(
+        state = listState,
         contentPadding = ProxListPadding,
         verticalArrangement = Arrangement.spacedBy(ProxSpace.listGap),
     ) {
@@ -198,9 +212,11 @@ private fun StorageGridList(
     nodes: List<ClusterResource>,
     storages: List<ClusterResource>,
     error: String?,
+    gridState: androidx.compose.foundation.lazy.grid.LazyGridState,
 ) {
     LazyVerticalGrid(
         columns = GridCells.Fixed(2),
+        state = gridState,
         contentPadding = ProxListPadding,
         verticalArrangement = Arrangement.spacedBy(ProxSpace.listGap),
         horizontalArrangement = Arrangement.spacedBy(ProxSpace.listGap),
@@ -235,8 +251,10 @@ private fun StorageCompactList(
     nodes: List<ClusterResource>,
     storages: List<ClusterResource>,
     error: String?,
+    listState: androidx.compose.foundation.lazy.LazyListState,
 ) {
     LazyColumn(
+        state = listState,
         contentPadding = ProxListPadding,
         verticalArrangement = Arrangement.spacedBy(ProxSpace.sm),
     ) {

@@ -1,7 +1,5 @@
 package com.proxpanel.app.ui.components
 
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
@@ -10,11 +8,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -35,22 +31,16 @@ data class ClusterOverview(
 @Composable
 fun ClusterOverviewBar(
     overview: ClusterOverview,
-    pulsing: Boolean,
+    @Suppress("UNUSED_PARAMETER") pulsing: Boolean,
     modifier: Modifier = Modifier,
 ) {
-    val pulse by animateFloatAsState(
-        targetValue = if (pulsing) 1f else 0.55f,
-        animationSpec = tween(450),
-        label = "cluster-pulse",
-    )
     Row(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = ProxSpace.screen)
             .clip(MaterialTheme.shapes.small)
             .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-            .padding(horizontal = 12.dp, vertical = 10.dp)
-            .graphicsLayer { alpha = 0.7f + pulse * 0.3f },
+            .padding(horizontal = 12.dp, vertical = 10.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {

@@ -9,8 +9,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -39,6 +41,8 @@ import com.proxpanel.app.ui.storage.StorageScreen
 import com.proxpanel.app.ui.storage.StorageViewModel
 import com.proxpanel.app.ui.tasks.TasksScreen
 import com.proxpanel.app.ui.tasks.TasksViewModel
+import com.proxpanel.app.ui.util.ListScrollSession
+import com.proxpanel.app.ui.util.LocalListScrollSession
 
 @Composable
 fun HomeShell(
@@ -59,7 +63,11 @@ fun HomeShell(
         ),
     )
     val jobTracker = container.jobTracker
+    val scrollSession = remember { ListScrollSession() }
 
+    // Provide the session object only — never `session.scrolling` here, or the
+    // whole NavHost recomposes on every fling start/stop.
+    CompositionLocalProvider(LocalListScrollSession provides scrollSession) {
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -187,4 +195,5 @@ fun HomeShell(
             }
         }
     }
+    } // CompositionLocalProvider
 }

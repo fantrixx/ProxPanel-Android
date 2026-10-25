@@ -1,10 +1,10 @@
 package com.proxpanel.app.ui.guests
 
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -53,7 +53,6 @@ import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -65,7 +64,6 @@ import androidx.compose.ui.res.stringResource
 import com.proxpanel.app.R
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -94,14 +92,16 @@ import com.proxpanel.app.ui.components.GuestBackupProgressBlock
 import com.proxpanel.app.ui.components.GuestLogo
 import com.proxpanel.app.ui.components.KindChip
 import com.proxpanel.app.ui.components.MetricBar
-import com.proxpanel.app.ui.components.ProxCard
+import com.proxpanel.app.ui.components.ProxListCard
 import com.proxpanel.app.ui.components.ProxEmptyState
 import com.proxpanel.app.ui.components.ProxListPadding
 import com.proxpanel.app.ui.components.ProxLoadingState
 import com.proxpanel.app.ui.components.ProxSearchBar
 import com.proxpanel.app.ui.components.ProxTopBar
 import com.proxpanel.app.ui.components.CpuSparkline
+import com.proxpanel.app.ui.components.GuestLetterAvatar
 import com.proxpanel.app.ui.components.StatusBadge
+import com.proxpanel.app.ui.components.StatusDot
 import com.proxpanel.app.ui.theme.ProxBad
 import com.proxpanel.app.ui.theme.ProxCt
 import com.proxpanel.app.ui.theme.ProxCtContainer
@@ -111,7 +111,10 @@ import com.proxpanel.app.ui.theme.ProxSpace
 import com.proxpanel.app.ui.theme.ProxVm
 import com.proxpanel.app.ui.theme.ProxVmContainer
 import com.proxpanel.app.ui.theme.ProxWarn
+import com.proxpanel.app.ui.util.LocalListScrollSession
 import com.proxpanel.app.ui.util.rememberAppHaptics
+import com.proxpanel.app.ui.util.rememberHeavyContentReady
+import com.proxpanel.app.ui.util.rememberListScrollFreeze
 import com.proxpanel.app.util.cpuPct
 import com.proxpanel.app.util.formatBytes
 import com.proxpanel.app.util.formatBytesRate
@@ -121,6 +124,8 @@ import com.proxpanel.app.util.guestVisualStatus
 import com.proxpanel.app.util.isTransitioningStatus
 import com.proxpanel.app.util.pendingLabelForAction
 import com.proxpanel.app.util.usagePct
+
+private val EmptyCpuHistory: List<Float> = emptyList()
 
 @OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
@@ -132,8 +137,8 @@ fun GuestsScreen(
     onLogout: () -> Unit,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    val jobs by jobTracker.jobs.collectAsState()
-    val jobSnaps by jobTracker.snapshots.collectAsState()
+    // Only jobs list (not snapshots) — snapshot ticks were recomposing the whole grid every poll.
+    val jobs by jobTracker.jobs.collectAsStateWithLifecycle()
     var query by remember { mutableStateOf("") }
     val kindFilter = state.kindFilter
     val statusFilter = state.statusFilter
@@ -152,6 +157,7 @@ fun GuestsScreen(
     val filtersActive =
         kindFilter != GuestKindFilter.All || statusFilter != GuestStatusFilter.All || query.isNotBlank()
     val gridState = rememberLazyGridState()
+    val scrollSession = LocalListScrollSession.current
 
     DisposableEffect(lifecycleOwner, viewModel) {
         val observer = LifecycleEventObserver { _, event ->
@@ -160,6 +166,19 @@ fun GuestsScreen(
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
+
+    // Hold live poll recompositions while scrolling (gate must not recompose NavHost).
+    val viewMode = state.viewMode
+    rememberListScrollFreeze(
+        listState = listState,
+        gridState = gridState,
+        useGrid = viewMode == NodesViewMode.Grid,
+        settleMs = 280L,
+        onScrolling = { scrolling ->
+            scrollSession.update(scrolling)
+            viewModel.setListScrolling(scrolling)
+        },
+    )
 
     state.confirm?.let { confirm ->
         AlertDialog(
@@ -403,8 +422,8 @@ fun GuestsScreen(
                         },
                     )
                     else -> {
-                        @Suppress("UNUSED_VARIABLE")
-                        val jobTick = jobs.size + jobSnaps.hashCode()
+                        val hasJobs = jobs.isNotEmpty()
+                        Box(Modifier.weight(1f).fillMaxWidth()) {
                         when (state.viewMode) {
                             NodesViewMode.Cards -> {
                                 LazyColumn(
@@ -413,18 +432,22 @@ fun GuestsScreen(
                                     verticalArrangement = Arrangement.spacedBy(ProxSpace.listGap),
                                     modifier = Modifier.fillMaxSize(),
                                 ) {
-                                    items(guests, key = { "${it.type}-${it.node}-${it.vmid}" }) { guest ->
+                                    items(
+                                        guests,
+                                        key = { "${it.type}-${it.node}-${it.vmid}" },
+                                        contentType = { "card" },
+                                    ) { guest ->
                                         GuestCard(
                                             guest = guest,
                                             iconRecord = iconFor(guest),
                                             storages = state.backupStorages,
                                             rates = state.rates[guest.key],
-                                            cpuHistory = state.cpuHistory[guest.key].orEmpty(),
+                                            cpuHistory = state.cpuHistory[guest.key] ?: EmptyCpuHistory,
                                             pinned = guest.key in state.pinnedKeys,
                                             lastBackupStorage = state.lastBackupStorage,
                                             busy = state.busyKey?.startsWith(guest.key) == true,
                                             pending = state.pendingPower[guest.key],
-                                            backup = viewModel.backupProgress(guest),
+                                            backup = if (hasJobs) viewModel.backupProgress(guest) else null,
                                             onLogoClick = { iconPickerGuest = guest },
                                             onClick = { onOpenGuest(guest) },
                                             onLongClick = {
@@ -460,12 +483,16 @@ fun GuestsScreen(
                                     horizontalArrangement = Arrangement.spacedBy(ProxSpace.sm),
                                     modifier = Modifier.fillMaxSize(),
                                 ) {
-                                    gridItems(guests, key = { "${it.type}-${it.node}-${it.vmid}" }) { guest ->
+                                    gridItems(
+                                        guests,
+                                        key = { "${it.type}-${it.node}-${it.vmid}" },
+                                        contentType = { "tile" },
+                                    ) { guest ->
                                         GuestTile(
                                             guest = guest,
                                             iconRecord = iconFor(guest),
                                             pending = state.pendingPower[guest.key],
-                                            backup = viewModel.backupProgress(guest),
+                                            backup = if (hasJobs) viewModel.backupProgress(guest) else null,
                                             pinned = guest.key in state.pinnedKeys,
                                             busy = state.busyKey?.startsWith(guest.key) == true,
                                             onLogoClick = { iconPickerGuest = guest },
@@ -495,15 +522,17 @@ fun GuestsScreen(
                                     verticalArrangement = Arrangement.spacedBy(6.dp),
                                     modifier = Modifier.fillMaxSize(),
                                 ) {
-                                    items(guests, key = { "${it.type}-${it.node}-${it.vmid}" }) { guest ->
+                                    items(
+                                        guests,
+                                        key = { "${it.type}-${it.node}-${it.vmid}" },
+                                        contentType = { "compact" },
+                                    ) { guest ->
                                         GuestCompactRow(
                                             guest = guest,
-                                            iconRecord = iconFor(guest),
                                             pending = state.pendingPower[guest.key],
-                                            backup = viewModel.backupProgress(guest),
+                                            backup = if (hasJobs) viewModel.backupProgress(guest) else null,
                                             pinned = guest.key in state.pinnedKeys,
                                             busy = state.busyKey?.startsWith(guest.key) == true,
-                                            onLogoClick = { iconPickerGuest = guest },
                                             onClick = { onOpenGuest(guest) },
                                             onLongClick = {
                                                 haptics.longPress()
@@ -523,6 +552,7 @@ fun GuestsScreen(
                                     }
                                 }
                             }
+                        }
                         }
                     }
                 }
@@ -583,28 +613,22 @@ private fun GuestCard(
     onQuickBackup: () -> Unit,
 ) {
     var backupMenuOpen by remember { mutableStateOf(false) }
+    // Mid-fling: compose a lighter card first; sparkline & co. attach after settle.
+    val heavyReady = rememberHeavyContentReady()
     val pendingVisual = pending?.let { pendingLabelForAction(it.action) }
     val visual = guestVisualStatus(guest.status, guest.qmpstatus, guest.lock, pendingVisual)
     val transitioning = isTransitioningStatus(visual)
     val backingUp = backup?.running == true
     val backupFailed = backup?.failed == true
     val actionsLocked = busy || pending != null || backingUp
-    val loadFactor = remember(guest.cpu, rates) {
-        val cpu = ((guest.cpu ?: 0.0) * 100.0).coerceIn(0.0, 100.0)
-        val net = ((rates?.netin ?: 0.0) + (rates?.netout ?: 0.0))
-        val netScore = (net / (8 * 1024 * 1024)).coerceIn(0.0, 1.0) * 100.0 // ~8 MiB/s = full
-        ((cpu * 0.7) + (netScore * 0.3)).toFloat().coerceIn(0f, 100f)
-    }
-    val glowTarget = when {
+    // Static border — animateColorAsState on every poll was a major scroll hitch.
+    val glow = when {
         backupFailed -> ProxBad.copy(alpha = 0.55f)
         backingUp || transitioning -> MaterialTheme.colorScheme.primary.copy(alpha = 0.45f)
-        loadFactor >= 75f -> ProxBad.copy(alpha = 0.18f + (loadFactor - 75f) / 100f)
-        loadFactor >= 45f -> ProxWarn.copy(alpha = 0.12f + (loadFactor - 45f) / 200f)
         pinned -> MaterialTheme.colorScheme.primary.copy(alpha = 0.28f)
         else -> Color.Transparent
     }
-    val glow by animateColorAsState(glowTarget, tween(420), label = "card-glow")
-    val topBarTarget = when {
+    val topBarColor = when {
         backupFailed -> ProxBad
         backingUp -> MaterialTheme.colorScheme.primary
         visual == "creating" || visual == "starting" || visual == "migrating" ->
@@ -612,15 +636,45 @@ private fun GuestCard(
         visual == "shutting down" || visual == "stopping" || visual == "rebooting" -> ProxWarn
         else -> Color.Transparent
     }
-    val topBarColor by animateColorAsState(topBarTarget, tween(360), label = "top-bar")
     val canQuickBackup =
         (lastBackupStorage != null && lastBackupStorage in storages) || storages.size == 1
+    val cpuText = remember(guest.cpu) { formatPct(guest.cpu) }
+    val cpuBar = remember(guest.cpu) { cpuPct(guest.cpu) }
+    val ramText = remember(guest.mem, guest.maxmem) {
+        "${formatBytes(guest.mem)} / ${formatBytes(guest.maxmem)}"
+    }
+    val ramBar = remember(guest.mem, guest.maxmem) { usagePct(guest.mem, guest.maxmem) }
+    val diskText = remember(guest.disk, guest.maxdisk) {
+        "${formatBytes(guest.disk)} / ${formatBytes(guest.maxdisk)}"
+    }
+    val diskBar = remember(guest.disk, guest.maxdisk) { usagePct(guest.disk, guest.maxdisk) }
+    val primaryIp = guest.ips.firstOrNull()
+    val metaLine = remember(guest.node, guest.vmid, primaryIp, guest.isRunning, guest.uptime) {
+        buildString {
+            append(guest.node)
+            append(" · ")
+            append(guest.vmid)
+            if (primaryIp != null) {
+                append(" · ")
+                append(primaryIp)
+            }
+            if (guest.isRunning) {
+                append(" · ")
+                append(formatUptime(guest.uptime))
+            }
+        }
+    }
 
-    ProxCard(borderColor = glow, borderWidth = if (glow.alpha > 0.02f) 1.5.dp else 0.dp) {
+    ProxListCard(borderColor = glow, borderWidth = if (glow.alpha > 0.02f) 1.5.dp else 0.dp) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .combinedClickable(onClick = onClick, onLongClick = onLongClick),
+                .combinedClickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onClick,
+                    onLongClick = onLongClick,
+                ),
         ) {
             Column(modifier = Modifier.fillMaxWidth()) {
                 if (backingUp || backupFailed || transitioning) {
@@ -709,9 +763,7 @@ private fun GuestCard(
                             overflow = TextOverflow.Ellipsis,
                         )
                         Text(
-                            text = "${guest.node} · ${guest.vmid}" +
-                                (guest.ips.firstOrNull()?.let { " · $it" } ?: "") +
-                                if (guest.isRunning) " · ${formatUptime(guest.uptime)}" else "",
+                            text = metaLine,
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
@@ -720,67 +772,74 @@ private fun GuestCard(
                     }
                 }
 
-                if (backingUp) {
+                if (backingUp && heavyReady) {
                     Spacer(Modifier.height(ProxSpace.md))
                     GuestBackupProgressBlock(
                         progress = backup?.progress,
                         label = backup?.label ?: "…",
                         failed = false,
                     )
+                } else if (backingUp) {
+                    Spacer(Modifier.height(ProxSpace.md))
+                    Text(
+                        text = backup?.label ?: "Backup…",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
                 }
 
                 Spacer(Modifier.height(ProxSpace.lg))
-                MetricBar(stringResource(R.string.metric_cpu), formatPct(guest.cpu), cpuPct(guest.cpu))
+                MetricBar(stringResource(R.string.metric_cpu), cpuText, cpuBar)
                 if (cpuHistory.size >= 2) {
                     Spacer(Modifier.height(6.dp))
-                    CpuSparkline(values = cpuHistory)
+                    if (heavyReady) {
+                        CpuSparkline(values = cpuHistory)
+                    } else {
+                        CpuSparklineStub(values = cpuHistory)
+                    }
                 }
                 Spacer(Modifier.height(ProxSpace.md))
-                MetricBar(
-                    stringResource(R.string.metric_ram),
-                    "${formatBytes(guest.mem)} / ${formatBytes(guest.maxmem)}",
-                    usagePct(guest.mem, guest.maxmem),
-                )
+                MetricBar(stringResource(R.string.metric_ram), ramText, ramBar)
                 Spacer(Modifier.height(ProxSpace.md))
-                MetricBar(
-                    stringResource(R.string.metric_disk),
-                    "${formatBytes(guest.disk)} / ${formatBytes(guest.maxdisk)}",
-                    usagePct(guest.disk, guest.maxdisk),
-                )
+                MetricBar(stringResource(R.string.metric_disk), diskText, diskBar)
 
-                Spacer(Modifier.height(ProxSpace.md))
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(ProxSpace.lg),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            Icons.Default.ArrowDownward,
-                            contentDescription = null,
-                            modifier = Modifier.size(12.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        Spacer(Modifier.width(2.dp))
-                        Text(
-                            text = formatBytesRate(rates?.netin),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                if (heavyReady) {
+                    Spacer(Modifier.height(ProxSpace.md))
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(ProxSpace.lg),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Default.ArrowDownward,
+                                contentDescription = null,
+                                modifier = Modifier.size(12.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            Spacer(Modifier.width(2.dp))
+                            Text(
+                                text = formatBytesRate(rates?.netin),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Default.ArrowUpward,
+                                contentDescription = null,
+                                modifier = Modifier.size(12.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            Spacer(Modifier.width(2.dp))
+                            Text(
+                                text = formatBytesRate(rates?.netout),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                     }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            Icons.Default.ArrowUpward,
-                            contentDescription = null,
-                            modifier = Modifier.size(12.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        Spacer(Modifier.width(2.dp))
-                        Text(
-                            text = formatBytesRate(rates?.netout),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
+                } else {
+                    Spacer(Modifier.height(ProxSpace.md + 16.dp))
                 }
             }
         }
@@ -837,27 +896,32 @@ private fun GuestCard(
                     loading = backingUp,
                     progressLabel = backup?.progress?.let { "${it.toInt()}%" },
                 )
-                DropdownMenu(
-                    expanded = backupMenuOpen,
-                    onDismissRequest = { backupMenuOpen = false },
-                ) {
-                    storages.forEach { storage ->
-                        val preferred = storage == lastBackupStorage
-                        DropdownMenuItem(
-                            text = {
-                                Text(if (preferred) "$storage  ★" else storage)
-                            },
-                            onClick = {
-                                backupMenuOpen = false
-                                onBackup(storage)
-                            },
-                        )
+                if (backupMenuOpen) {
+                    DropdownMenu(
+                        expanded = true,
+                        onDismissRequest = { backupMenuOpen = false },
+                    ) {
+                        storages.forEach { storage ->
+                            val preferred = storage == lastBackupStorage
+                            DropdownMenuItem(
+                                text = {
+                                    Text(if (preferred) "$storage  ★" else storage)
+                                },
+                                onClick = {
+                                    backupMenuOpen = false
+                                    onBackup(storage)
+                                },
+                            )
+                        }
                     }
                 }
             }
         }
     }
 }
+
+/** Fixed height so a new grid row of 2 tiles never remeasures during a fling. */
+private val GuestTileHeight = 148.dp
 
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
@@ -874,147 +938,34 @@ private fun GuestTile(
     onPower: (String) -> Unit,
     onQuickBackup: () -> Unit,
 ) {
-    val pendingVisual = pending?.let { pendingLabelForAction(it.action) }
-    val visual = guestVisualStatus(guest.status, guest.qmpstatus, guest.lock, pendingVisual)
-    val transitioning = isTransitioningStatus(visual)
     val backingUp = backup?.running == true
     val locked = busy || pending != null || backingUp
-
-    ProxCard(
-        borderColor = when {
-            backingUp -> MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
-            transitioning -> ProxWarn.copy(alpha = 0.35f)
-            pinned -> MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)
-            else -> Color.Transparent
-        },
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .combinedClickable(onClick = onClick, onLongClick = onLongClick),
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                StatusBadge(
-                    status = guest.status,
-                    qmpstatus = guest.qmpstatus,
-                    lock = guest.lock,
-                    pending = pendingVisual,
-                )
-                Spacer(Modifier.weight(1f))
-                KindChip(text = guest.kindLabel, kind = guest.type)
-            }
-            Spacer(Modifier.height(ProxSpace.sm))
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(ProxSpace.xs),
-            ) {
-                GuestLogo(
-                    name = guest.name,
-                    tags = guest.tags,
-                    record = iconRecord,
-                    type = guest.type,
-                    size = 32.dp,
-                    onClick = onLogoClick,
-                )
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = guest.name,
-                        style = MaterialTheme.typography.titleSmall,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Text(
-                        text = "${guest.vmid} · ${guest.node}",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-            }
-            if (backingUp) {
-                Spacer(Modifier.height(ProxSpace.xs))
-                Text(
-                    text = "Backup ${backup?.progress?.let { "${it.toInt()}%" } ?: "…"}",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.primary,
-                )
-            }
-            Spacer(Modifier.height(ProxSpace.sm))
-            MetricBar(stringResource(R.string.metric_cpu), formatPct(guest.cpu), cpuPct(guest.cpu))
-            Spacer(Modifier.height(ProxSpace.sm))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                if (guest.isRunning || pending?.action == "reboot") {
-                    GuestActionIcon(
-                        icon = Icons.Default.RestartAlt,
-                        contentDescription = stringResource(R.string.power_reboot),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        enabled = !locked,
-                        onClick = { onPower("reboot") },
-                    )
-                    GuestActionIcon(
-                        icon = Icons.Default.PowerSettingsNew,
-                        contentDescription = "Shutdown",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        enabled = !locked,
-                        onClick = { onPower("shutdown") },
-                    )
-                } else {
-                    GuestActionIcon(
-                        icon = Icons.Default.PlayArrow,
-                        contentDescription = stringResource(R.string.power_start),
-                        tint = ProxGood,
-                        enabled = !locked,
-                        onClick = { onPower("start") },
-                    )
-                }
-                GuestActionIcon(
-                    icon = Icons.Default.CloudUpload,
-                    contentDescription = stringResource(R.string.power_backup),
-                    tint = MaterialTheme.colorScheme.primary,
-                    enabled = !locked,
-                    onClick = onQuickBackup,
-                    loading = backingUp,
-                )
-            }
-        }
+    val running = guest.isRunning || pending?.action == "reboot"
+    val muted = MaterialTheme.colorScheme.onSurfaceVariant
+    val shape = MaterialTheme.shapes.medium
+    val surface = MaterialTheme.colorScheme.surfaceContainer
+    val border = if (pinned) MaterialTheme.colorScheme.primary.copy(alpha = 0.25f) else Color.Transparent
+    val interaction = remember { MutableInteractionSource() }
+    val metrics = remember(guest.cpu, guest.mem, guest.maxmem, guest.disk, guest.maxdisk) {
+        "CPU ${formatPct(guest.cpu)}  ·  RAM ${usagePct(guest.mem, guest.maxmem).toInt()}%  ·  Disk ${usagePct(guest.disk, guest.maxdisk).toInt()}%"
     }
-}
 
-@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
-@Composable
-private fun GuestCompactRow(
-    guest: GuestItem,
-    iconRecord: GuestIconRecord?,
-    pending: PendingPower?,
-    backup: GuestJobProgress?,
-    pinned: Boolean,
-    busy: Boolean,
-    onLogoClick: () -> Unit,
-    onClick: () -> Unit,
-    onLongClick: () -> Unit,
-    onPower: (String) -> Unit,
-    onQuickBackup: () -> Unit,
-) {
-    val pendingVisual = pending?.let { pendingLabelForAction(it.action) }
-    val visual = guestVisualStatus(guest.status, guest.qmpstatus, guest.lock, pendingVisual)
-    val backingUp = backup?.running == true
-    val locked = busy || pending != null || backingUp
-
-    ProxCard(
-        borderColor = if (pinned) MaterialTheme.colorScheme.primary.copy(alpha = 0.3f) else Color.Transparent,
-        borderWidth = 1.dp,
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(GuestTileHeight)
+            .clip(shape)
+            .background(surface)
+            .then(if (border.alpha > 0.02f) Modifier.border(1.dp, border, shape) else Modifier)
+            .combinedClickable(
+                interactionSource = interaction,
+                indication = null,
+                onClick = onClick,
+                onLongClick = onLongClick,
+            )
+            .padding(ProxSpace.card),
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .combinedClickable(onClick = onClick, onLongClick = onLongClick),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
             GuestLogo(
                 name = guest.name,
                 tags = guest.tags,
@@ -1022,13 +973,6 @@ private fun GuestCompactRow(
                 type = guest.type,
                 size = 36.dp,
                 onClick = onLogoClick,
-            )
-            Spacer(Modifier.width(ProxSpace.xs))
-            StatusBadge(
-                status = guest.status,
-                qmpstatus = guest.qmpstatus,
-                lock = guest.lock,
-                pending = pendingVisual,
             )
             Spacer(Modifier.width(ProxSpace.sm))
             Column(modifier = Modifier.weight(1f)) {
@@ -1039,20 +983,154 @@ private fun GuestCompactRow(
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    text = buildString {
-                        append(guest.kindLabel)
-                        append(' ')
-                        append(guest.vmid)
-                        append(" · ")
-                        append(guest.node)
-                        if (backingUp) {
-                            append(" · Backup ")
-                            append(backup?.progress?.let { "${it.toInt()}%" } ?: "…")
-                        } else if (guest.isRunning) {
-                            append(" · CPU ")
-                            append(formatPct(guest.cpu))
-                        }
-                    },
+                    text = "${guest.kindLabel} ${guest.vmid}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = muted,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            StatusDot(running = guest.isRunning, locked = !guest.lock.isNullOrBlank())
+        }
+        Spacer(Modifier.height(ProxSpace.sm))
+        if (backingUp) {
+            Text(
+                text = "Backup…",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary,
+            )
+        } else {
+            Text(metrics, style = MaterialTheme.typography.labelSmall, color = muted, maxLines = 1)
+        }
+        Spacer(Modifier.height(ProxSpace.sm))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (running) {
+                GuestActionIcon(
+                    icon = Icons.Default.PowerSettingsNew,
+                    contentDescription = stringResource(R.string.power_shutdown),
+                    tint = muted,
+                    enabled = !locked,
+                    onClick = { onPower("shutdown") },
+                )
+                GuestActionIcon(
+                    icon = Icons.Default.RestartAlt,
+                    contentDescription = stringResource(R.string.power_reboot),
+                    tint = muted,
+                    enabled = !locked,
+                    onClick = { onPower("reboot") },
+                )
+            } else {
+                GuestActionIcon(
+                    icon = Icons.Default.PlayArrow,
+                    contentDescription = stringResource(R.string.power_start),
+                    tint = ProxGood,
+                    enabled = !locked,
+                    onClick = { onPower("start") },
+                )
+                Spacer(Modifier.width(1.dp))
+            }
+            GuestActionIcon(
+                icon = Icons.Default.CloudUpload,
+                contentDescription = stringResource(R.string.power_backup),
+                tint = MaterialTheme.colorScheme.primary,
+                enabled = !locked,
+                onClick = onQuickBackup,
+                loading = backingUp,
+            )
+        }
+    }
+}
+
+/** Cheap stand-in for [CpuSparkline] while a card is first composed mid-fling. */
+@Composable
+private fun CpuSparklineStub(values: List<Float>) {
+    val nums = remember(values) { values.filter { it.isFinite() } }
+    if (nums.size < 2) return
+    val last = nums.last()
+    val dataMin = nums.minOrNull() ?: 0f
+    val dataMax = nums.maxOrNull() ?: 0f
+    val color = when {
+        last >= 85f -> ProxBad
+        last >= 60f -> ProxWarn
+        else -> ProxGood
+    }
+    val muted = MaterialTheme.colorScheme.onSurfaceVariant
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(40.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text(
+                text = stringResource(R.string.metric_cpu),
+                style = MaterialTheme.typography.labelSmall,
+                color = muted,
+            )
+            Text(
+                text = "${last.toInt()}%",
+                style = MaterialTheme.typography.labelMedium,
+                color = color,
+            )
+        }
+        Text(
+            text = stringResource(R.string.cpu_spark_range, dataMin.toInt(), dataMax.toInt()),
+            style = MaterialTheme.typography.labelSmall,
+            color = muted,
+        )
+    }
+}
+
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+@Composable
+private fun GuestCompactRow(
+    guest: GuestItem,
+    pending: PendingPower?,
+    backup: GuestJobProgress?,
+    pinned: Boolean,
+    busy: Boolean,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+    onPower: (String) -> Unit,
+    onQuickBackup: () -> Unit,
+) {
+    val backingUp = backup?.running == true
+    val locked = busy || pending != null || backingUp
+
+    ProxListCard(
+        borderColor = if (pinned) MaterialTheme.colorScheme.primary.copy(alpha = 0.3f) else Color.Transparent,
+        borderWidth = 1.dp,
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .combinedClickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onClick,
+                    onLongClick = onLongClick,
+                ),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            GuestLetterAvatar(name = guest.name, type = guest.type, size = 32.dp)
+            Spacer(Modifier.width(ProxSpace.sm))
+            StatusDot(running = guest.isRunning, locked = !guest.lock.isNullOrBlank())
+            Spacer(Modifier.width(ProxSpace.sm))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = guest.name,
+                    style = MaterialTheme.typography.titleSmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = "${guest.kindLabel} ${guest.vmid} · ${guest.node}" +
+                        if (guest.isRunning) " · CPU ${formatPct(guest.cpu)}" else "",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
@@ -1102,6 +1180,7 @@ private fun TransitionChip(
         warn -> ProxWarn.copy(alpha = 0.12f) to ProxWarn
         else -> MaterialTheme.colorScheme.primary.copy(alpha = 0.12f) to MaterialTheme.colorScheme.primary
     }
+    val scrolling = com.proxpanel.app.ui.util.LocalListScrollSession.current.scrolling
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
@@ -1109,11 +1188,20 @@ private fun TransitionChip(
             .background(bg)
             .padding(horizontal = 6.dp, vertical = 2.dp),
     ) {
-        CircularProgressIndicator(
-            modifier = Modifier.size(10.dp),
-            strokeWidth = 1.5.dp,
-            color = fg,
-        )
+        if (scrolling || bad) {
+            Box(
+                modifier = Modifier
+                    .size(10.dp)
+                    .clip(MaterialTheme.shapes.extraSmall)
+                    .background(fg.copy(alpha = 0.85f)),
+            )
+        } else {
+            CircularProgressIndicator(
+                modifier = Modifier.size(10.dp),
+                strokeWidth = 1.5.dp,
+                color = fg,
+            )
+        }
         Spacer(Modifier.width(4.dp))
         Text(text, style = MaterialTheme.typography.labelSmall, color = fg)
     }
@@ -1129,13 +1217,17 @@ private fun GuestActionIcon(
     loading: Boolean = false,
     progressLabel: String? = null,
 ) {
-    IconButton(
-        onClick = onClick,
-        enabled = enabled,
-        colors = IconButtonDefaults.iconButtonColors(
-            contentColor = tint,
-            disabledContentColor = tint.copy(alpha = 0.35f),
-        ),
+    val interaction = remember { MutableInteractionSource() }
+    Box(
+        modifier = Modifier
+            .size(40.dp)
+            .clickable(
+                interactionSource = interaction,
+                indication = null,
+                enabled = enabled,
+                onClick = onClick,
+            ),
+        contentAlignment = Alignment.Center,
     ) {
         if (loading) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -1153,6 +1245,7 @@ private fun GuestActionIcon(
                 imageVector = icon,
                 contentDescription = contentDescription,
                 modifier = Modifier.size(22.dp),
+                tint = if (enabled) tint else tint.copy(alpha = 0.35f),
             )
         }
     }

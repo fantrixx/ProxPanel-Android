@@ -68,6 +68,30 @@ class GuestDetailViewModel(
     private var localBackupStarted = false
     private var backupSeenOnApi = false
     private val iconKey = guestIconKey(guest.node, guest.type, guest.vmid)
+    @Volatile private var listScrolling = false
+    private val scrollLock = Any()
+    private var heldState: DetailUiState? = null
+
+    fun setListScrolling(scrolling: Boolean) {
+        synchronized(scrollLock) {
+            if (listScrolling == scrolling) return
+            listScrolling = scrolling
+            if (!scrolling) {
+                val pending = heldState
+                heldState = null
+                if (pending != null) _state.value = pending
+            }
+        }
+    }
+
+    private fun publishSilent(next: DetailUiState) {
+        synchronized(scrollLock) {
+            if (listScrolling) heldState = next else {
+                heldState = null
+                _state.value = next
+            }
+        }
+    }
 
     init {
         viewModelScope.launch {
@@ -133,18 +157,17 @@ class GuestDetailViewModel(
                 } else {
                     current.backupStorages
                 }
-                _state.update {
-                    it.copy(
-                        guest = updated,
-                        detail = detail,
-                        backupStorages = stores,
-                        loading = false,
-                        error = null,
-                        coresInput = it.coresInput.ifBlank { cores },
-                        memoryInput = it.memoryInput.ifBlank { memory },
-                        swapInput = it.swapInput.ifBlank { swap },
-                    )
-                }
+                val next = current.copy(
+                    guest = updated,
+                    detail = detail,
+                    backupStorages = stores,
+                    loading = false,
+                    error = null,
+                    coresInput = current.coresInput.ifBlank { cores },
+                    memoryInput = current.memoryInput.ifBlank { memory },
+                    swapInput = current.swapInput.ifBlank { swap },
+                )
+                if (silent) publishSilent(next) else _state.value = next
             } catch (e: Exception) {
                 if (!silent) {
                     _state.update {
@@ -337,18 +360,17 @@ class GuestDetailViewModel(
             localBackupStarted = false
             backupSeenOnApi = false
             val wasRunning = _state.value.backupRunning
-            _state.update {
-                it.copy(
-                    backupRunning = false,
-                    message = if (wasRunning) l10n.get(R.string.toast_backup_finished) else it.message,
-                )
-            }
+            val next = _state.value.copy(
+                backupRunning = false,
+                message = if (wasRunning) l10n.get(R.string.toast_backup_finished) else _state.value.message,
+            )
+            publishSilent(next)
             if (wasRunning) loadBackups()
             return
         }
         val running = apiRunning || localBackupStarted
         if (running != _state.value.backupRunning) {
-            _state.update { it.copy(backupRunning = running) }
+            publishSilent(_state.value.copy(backupRunning = running))
         }
     }
 

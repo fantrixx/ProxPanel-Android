@@ -58,6 +58,15 @@ fun MediaScreen(viewModel: MediaViewModel) {
     val haptics = rememberAppHaptics()
     var query by remember { mutableStateOf("") }
     var appearanceOpen by remember { mutableStateOf(false) }
+    val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+    val gridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
+    val scrollSession = com.proxpanel.app.ui.util.LocalListScrollSession.current
+    com.proxpanel.app.ui.util.rememberListScrollFreeze(
+        listState = listState,
+        gridState = gridState,
+        useGrid = state.viewMode == NodesViewMode.Grid,
+        onScrolling = scrollSession::update,
+    )
     val filtered = remember(state.items, query) {
         val q = query.trim().lowercase()
         if (q.isEmpty()) state.items
@@ -150,6 +159,7 @@ fun MediaScreen(viewModel: MediaViewModel) {
                         when (state.viewMode) {
                             NodesViewMode.Cards -> {
                                 LazyColumn(
+                                    state = listState,
                                     contentPadding = ProxListPadding,
                                     verticalArrangement = Arrangement.spacedBy(ProxSpace.listGap),
                                 ) {
@@ -161,6 +171,7 @@ fun MediaScreen(viewModel: MediaViewModel) {
                             NodesViewMode.Grid -> {
                                 LazyVerticalGrid(
                                     columns = GridCells.Fixed(2),
+                                    state = gridState,
                                     contentPadding = ProxListPadding,
                                     verticalArrangement = Arrangement.spacedBy(ProxSpace.listGap),
                                     horizontalArrangement = Arrangement.spacedBy(ProxSpace.listGap),
@@ -173,6 +184,7 @@ fun MediaScreen(viewModel: MediaViewModel) {
                             }
                             NodesViewMode.Compact -> {
                                 LazyColumn(
+                                    state = listState,
                                     contentPadding = ProxListPadding,
                                     verticalArrangement = Arrangement.spacedBy(ProxSpace.sm),
                                 ) {

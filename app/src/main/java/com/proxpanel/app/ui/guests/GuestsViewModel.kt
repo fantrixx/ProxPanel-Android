@@ -29,7 +29,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -106,11 +105,44 @@ class GuestsViewModel(
     private val refreshMutex = Mutex()
     private val prevCounters = mutableMapOf<String, CounterSample>()
     private val cpuBuffers = mutableMapOf<String, ArrayDeque<Float>>()
+    private var silentPollCount = 0
+    /** While true, background state is buffered and flushed once scrolling stops. */
+    @Volatile private var listScrolling = false
+    private val scrollLock = Any()
+    private var heldState: GuestsUiState? = null
+
+    /** Background/live updates — held while scrolling so Lazy lists don't recompose mid-fling. */
+    private fun publishBackground(transform: (GuestsUiState) -> GuestsUiState) {
+        synchronized(scrollLock) {
+            val base = heldState ?: _state.value
+            val next = transform(base)
+            if (listScrolling) {
+                heldState = next
+            } else {
+                heldState = null
+                _state.value = next
+            }
+        }
+    }
+
+    /** Immediate UI (dialogs, taps, filters) — always reaches Compose. */
+    private fun publishNow(transform: (GuestsUiState) -> GuestsUiState) {
+        synchronized(scrollLock) {
+            val base = heldState ?: _state.value
+            val next = transform(base)
+            heldState = if (listScrolling) next else null
+            _state.value = next
+        }
+    }
+
+    private fun currentState(): GuestsUiState = synchronized(scrollLock) {
+        heldState ?: _state.value
+    }
 
     init {
         viewModelScope.launch {
             prefsStore.pinnedGuestKeys.collect { keys ->
-                _state.update { state ->
+                publishBackground { state ->
                     val sorted = state.guests.sortedWith(
                         compareByDescending<GuestItem> { it.key in keys }
                             .thenByDescending { it.isRunning }
@@ -122,22 +154,23 @@ class GuestsViewModel(
         }
         viewModelScope.launch {
             prefsStore.lastBackupStorage.collect { storage ->
-                _state.update { it.copy(lastBackupStorage = storage) }
+                publishBackground { it.copy(lastBackupStorage = storage) }
             }
         }
         viewModelScope.launch {
             prefsStore.accentChoice.collect { accent ->
-                _state.update { it.copy(accent = accent) }
+                publishBackground { it.copy(accent = accent) }
             }
         }
         viewModelScope.launch {
             prefsStore.nodesViewMode.collect { mode ->
-                _state.update { it.copy(viewMode = mode) }
+                // View mode change must apply immediately even mid-scroll.
+                publishNow { it.copy(viewMode = mode) }
             }
         }
         viewModelScope.launch {
             prefsStore.guestIcons.collect { icons ->
-                _state.update { it.copy(guestIcons = icons) }
+                publishBackground { it.copy(guestIcons = icons) }
             }
         }
         refresh(initial = true)
@@ -178,7 +211,7 @@ class GuestsViewModel(
     }
 
     fun guestIconRecord(guest: GuestItem): GuestIconRecord? =
-        _state.value.guestIcons[guestIconKey(guest.node, guest.type, guest.vmid)]
+        currentState().guestIcons[guestIconKey(guest.node, guest.type, guest.vmid)]
 
     fun setAccent(choice: AccentChoice) {
         viewModelScope.launch { prefsStore.setAccentChoice(choice) }
@@ -189,34 +222,53 @@ class GuestsViewModel(
     }
 
     fun clearFilters() {
-        _state.update {
+        publishNow {
             it.copy(kindFilter = GuestKindFilter.All, statusFilter = GuestStatusFilter.All)
         }
     }
 
     fun setKindFilter(filter: GuestKindFilter) {
-        _state.update {
+        publishNow {
             it.copy(kindFilter = if (it.kindFilter == filter) GuestKindFilter.All else filter)
         }
     }
 
     fun setStatusFilter(filter: GuestStatusFilter) {
-        _state.update {
+        publishNow {
             it.copy(statusFilter = if (it.statusFilter == filter) GuestStatusFilter.All else filter)
         }
     }
 
-    fun clearMessage() = _state.update { it.copy(actionMessage = null, error = null) }
+    fun clearMessage() = publishNow { it.copy(actionMessage = null, error = null) }
 
     fun refreshIfEmpty() {
-        if (_state.value.guests.isEmpty()) refresh(initial = true)
+        if (currentState().guests.isEmpty()) refresh(initial = true)
+    }
+
+    /**
+     * Freeze Compose-facing state while the Entries list is scrolling.
+     * Live poll / prefs are held and flushed once after scroll settles —
+     * features stay intact, mid-fling recomposition stops.
+     */
+    fun setListScrolling(scrolling: Boolean) {
+        synchronized(scrollLock) {
+            if (listScrolling == scrolling) return
+            listScrolling = scrolling
+            if (!scrolling) {
+                val pending = heldState
+                heldState = null
+                if (pending != null) {
+                    _state.value = pending
+                }
+            }
+        }
     }
 
     fun refresh(initial: Boolean = false, silent: Boolean = false) {
         viewModelScope.launch {
             refreshMutex.withLock {
                 if (!silent) {
-                    _state.update {
+                    publishNow {
                         it.copy(
                             loading = initial || it.guests.isEmpty(),
                             refreshing = !initial && it.guests.isNotEmpty(),
@@ -228,38 +280,75 @@ class GuestsViewModel(
                 var lastError: String? = null
                 repeat(2) { attempt ->
                     try {
-                        val me = runCatching { api.me() }.getOrNull()
+                        val me = if (silent) null else runCatching { api.me() }.getOrNull()
                         val res = api.resources()
-                        val pinned = _state.value.pinnedKeys
+                        val prev = currentState()
+                        val pinned = prev.pinnedKeys
                         val guests = res.resources.mapNotNull { it.toGuestOrNull() }
                             .sortedWith(
                                 compareByDescending<GuestItem> { it.key in pinned }
                                     .thenByDescending { it.isRunning }
                                     .thenBy { it.name.lowercase() },
                             )
-                        val storages = runCatching {
-                            api.backupStorages().map { it.storage }.distinct()
-                        }.getOrDefault(_state.value.backupStorages)
+                        // Storages rarely change — skip on silent polls (extra API + recomposition).
+                        val storages = if (silent && prev.backupStorages.isNotEmpty()) {
+                            prev.backupStorages
+                        } else {
+                            runCatching {
+                                api.backupStorages().map { it.storage }.distinct()
+                            }.getOrDefault(prev.backupStorages)
+                        }
                         val (rates, history) = computeRatesAndSparks(guests)
                         val cluster = computeClusterOverview(res.resources, guests)
-                        _state.update {
-                            it.copy(
-                                user = me ?: it.user,
-                                guests = guests,
-                                backupStorages = storages,
-                                rates = rates,
-                                cpuHistory = history,
-                                cluster = cluster,
-                                loading = false,
-                                refreshing = false,
-                                error = null,
-                            )
-                        }
-                        if (!silent) {
-                            viewModelScope.launch {
-                                delay(700)
-                                _state.update { it.copy(refreshPulse = false) }
+                        val guestsOut = if (guests == prev.guests) prev.guests else guests
+                        val ratesOut = if (rates == prev.rates) prev.rates else rates
+                        val historyOut = if (history == prev.cpuHistory) prev.cpuHistory else history
+                        val clusterOut = if (cluster == prev.cluster) prev.cluster else cluster
+                        val next = prev.copy(
+                            user = me ?: prev.user,
+                            guests = guestsOut,
+                            backupStorages = storages,
+                            rates = ratesOut,
+                            cpuHistory = historyOut,
+                            cluster = clusterOut,
+                            loading = false,
+                            refreshing = false,
+                            error = null,
+                        )
+                        if (silent) {
+                            silentPollCount++
+                            val statusChanged = guests.size != prev.guests.size ||
+                                guests.zip(prev.guests).any { (a, b) ->
+                                    a.key != b.key ||
+                                        a.status != b.status ||
+                                        a.lock != b.lock ||
+                                        a.qmpstatus != b.qmpstatus ||
+                                        a.name != b.name
+                                }
+                            val pushMetrics = silentPollCount % 2 == 0
+                            if (!statusChanged && !pushMetrics) {
+                                return@withLock
                             }
+                            publishBackground { latest ->
+                                next.copy(
+                                    kindFilter = latest.kindFilter,
+                                    statusFilter = latest.statusFilter,
+                                    viewMode = latest.viewMode,
+                                    confirm = latest.confirm,
+                                    busyKey = latest.busyKey,
+                                    pendingPower = latest.pendingPower,
+                                    actionMessage = latest.actionMessage,
+                                    refreshing = latest.refreshing,
+                                    loading = latest.loading,
+                                    refreshPulse = latest.refreshPulse,
+                                )
+                            }
+                            return@withLock
+                        }
+                        publishNow { next }
+                        viewModelScope.launch {
+                            delay(700)
+                            publishBackground { it.copy(refreshPulse = false) }
                         }
                         reconcilePendingPower()
                         return@withLock
@@ -270,7 +359,7 @@ class GuestsViewModel(
                     }
                     if (attempt == 0) delay(400)
                 }
-                _state.update {
+                publishBackground {
                     it.copy(
                         loading = false,
                         refreshing = false,
@@ -375,17 +464,17 @@ class GuestsViewModel(
             else -> null
         }
         if (confirm != null) {
-            _state.update { it.copy(confirm = confirm) }
+            publishNow { it.copy(confirm = confirm) }
         } else {
             runPower(guest, action)
         }
     }
 
-    fun dismissConfirm() = _state.update { it.copy(confirm = null) }
+    fun dismissConfirm() = publishNow { it.copy(confirm = null) }
 
     fun confirmPower() {
-        val c = _state.value.confirm ?: return
-        _state.update { it.copy(confirm = null) }
+        val c = currentState().confirm ?: return
+        publishNow { it.copy(confirm = null) }
         runPower(c.guest, c.action)
     }
 
@@ -395,7 +484,7 @@ class GuestsViewModel(
         val actionKey = "${guest.node}/${guest.vmid}/$action"
         val gKey = guestKey(guest)
         viewModelScope.launch {
-            _state.update {
+            publishNow {
                 it.copy(
                     busyKey = actionKey,
                     pendingPower = it.pendingPower + (gKey to PendingPower(action)),
@@ -413,14 +502,14 @@ class GuestsViewModel(
                     else -> l10n.get(R.string.toast_action_requested, action)
                 }
                 jobTracker.toast(ToastKind.Ok, msg)
-                _state.update { it.copy(busyKey = null, actionMessage = msg) }
+                publishNow { it.copy(busyKey = null, actionMessage = msg) }
                 delay(1_200)
                 refresh(silent = true)
                 reconcilePendingPower()
             } catch (e: Exception) {
                 val err = e.message ?: l10n.get(R.string.error_action_failed)
                 jobTracker.toast(ToastKind.Err, err)
-                _state.update {
+                publishNow {
                     it.copy(
                         busyKey = null,
                         pendingPower = it.pendingPower - gKey,
@@ -432,9 +521,10 @@ class GuestsViewModel(
     }
 
     private suspend fun reconcilePendingPower() {
-        val pending = _state.value.pendingPower
+        val snap = currentState()
+        val pending = snap.pendingPower
         if (pending.isEmpty()) return
-        val guests = _state.value.guests.associateBy { guestKey(it) }
+        val guests = snap.guests.associateBy { guestKey(it) }
         val tasks = runCatching { api.tasks(limit = 60) }.getOrDefault(emptyList())
         val now = System.currentTimeMillis()
         val next = pending.toMutableMap()
@@ -509,7 +599,7 @@ class GuestsViewModel(
         }
 
         if (next != pending) {
-            _state.update { it.copy(pendingPower = next) }
+            publishBackground { it.copy(pendingPower = next) }
             if (next.size < pending.size) refresh(silent = true)
         }
     }
@@ -520,7 +610,7 @@ class GuestsViewModel(
     fun startBackup(guest: GuestItem, storage: String) {
         val key = "${guest.node}/${guest.vmid}/backup"
         viewModelScope.launch {
-            _state.update { it.copy(busyKey = key, error = null, actionMessage = null) }
+            publishNow { it.copy(busyKey = key, error = null, actionMessage = null) }
             try {
                 prefsStore.setLastBackupStorage(storage)
                 jobTracker.startGuestBackup(
@@ -530,11 +620,11 @@ class GuestsViewModel(
                     name = guest.name,
                     storage = storage,
                 )
-                _state.update {
+                publishNow {
                     it.copy(busyKey = null, actionMessage = l10n.get(R.string.toast_backup_started_for, guest.name))
                 }
             } catch (e: Exception) {
-                _state.update {
+                publishNow {
                     it.copy(busyKey = null, error = e.message ?: l10n.get(R.string.error_backup_failed))
                 }
             }
@@ -543,8 +633,9 @@ class GuestsViewModel(
 
     /** One-tap backup using remembered storage, or first available. */
     fun quickBackup(guest: GuestItem): Boolean {
-        val preferred = _state.value.lastBackupStorage
-        val storages = _state.value.backupStorages
+        val snap = currentState()
+        val preferred = snap.lastBackupStorage
+        val storages = snap.backupStorages
         val storage = when {
             preferred != null && preferred in storages -> preferred
             storages.size == 1 -> storages.first()

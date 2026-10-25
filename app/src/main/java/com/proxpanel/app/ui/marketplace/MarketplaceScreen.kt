@@ -71,6 +71,15 @@ fun MarketplaceScreen(viewModel: MarketplaceViewModel) {
     val haptics = rememberAppHaptics()
     val copiedMessage = stringResource(R.string.apps_snackbar_copied)
     var appearanceOpen by remember { mutableStateOf(false) }
+    val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+    val gridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
+    val scrollSession = com.proxpanel.app.ui.util.LocalListScrollSession.current
+    com.proxpanel.app.ui.util.rememberListScrollFreeze(
+        listState = listState,
+        gridState = gridState,
+        useGrid = state.viewMode == NodesViewMode.Grid,
+        onScrolling = scrollSession::update,
+    )
 
     if (appearanceOpen) {
         AppearanceDialog(
@@ -142,6 +151,7 @@ fun MarketplaceScreen(viewModel: MarketplaceViewModel) {
                     when (state.viewMode) {
                         NodesViewMode.Cards -> {
                             LazyColumn(
+                                state = listState,
                                 contentPadding = ProxListPadding,
                                 verticalArrangement = Arrangement.spacedBy(ProxSpace.listGap),
                             ) {
@@ -158,6 +168,7 @@ fun MarketplaceScreen(viewModel: MarketplaceViewModel) {
                         NodesViewMode.Grid -> {
                             LazyVerticalGrid(
                                 columns = GridCells.Fixed(2),
+                                state = gridState,
                                 contentPadding = ProxListPadding,
                                 verticalArrangement = Arrangement.spacedBy(ProxSpace.listGap),
                                 horizontalArrangement = Arrangement.spacedBy(ProxSpace.listGap),
@@ -175,6 +186,7 @@ fun MarketplaceScreen(viewModel: MarketplaceViewModel) {
                         }
                         NodesViewMode.Compact -> {
                             LazyColumn(
+                                state = listState,
                                 contentPadding = ProxListPadding,
                                 verticalArrangement = Arrangement.spacedBy(ProxSpace.sm),
                             ) {

@@ -1,16 +1,11 @@
 package com.proxpanel.app.ui.components
 
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -59,21 +54,66 @@ fun StatusBadge(
 ) {
     val visual = guestVisualStatus(status, qmpstatus, lock, pending)
     val tone = toneFor(visual)
-    val targetBg = when (tone) {
+    val bg = when (tone) {
         StatusTone.Good -> ProxGood.copy(alpha = 0.15f)
         StatusTone.Warn -> ProxWarn.copy(alpha = 0.15f)
         StatusTone.Accent -> MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
         StatusTone.Muted -> ProxMuted.copy(alpha = 0.15f)
     }
-    val targetFg = when (tone) {
+    val fg = when (tone) {
         StatusTone.Good -> ProxGood
         StatusTone.Warn -> ProxWarn
         StatusTone.Accent -> MaterialTheme.colorScheme.primary
         StatusTone.Muted -> ProxMuted
     }
-    val bg by animateColorAsState(targetBg, tween(320), label = "badge-bg")
-    val fg by animateColorAsState(targetFg, tween(320), label = "badge-fg")
-    val pulsing = tone != StatusTone.Muted
+    val wantPulse = tone == StatusTone.Warn || tone == StatusTone.Accent
+    // Only subscribe to the scroll gate when a pulse would run — otherwise every
+    // running badge would recompose on fling start and hitch the list.
+    val scrolling = if (wantPulse) {
+        com.proxpanel.app.ui.util.LocalListScrollSession.current.scrolling
+    } else {
+        false
+    }
+    val pulsing = wantPulse && !scrolling
+
+    Surface(
+        modifier = modifier,
+        shape = CircleShape,
+        color = bg,
+        contentColor = fg,
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+        ) {
+            if (pulsing) {
+                PulsingStatusDot(color = fg)
+            } else {
+                StaticStatusDot(color = fg)
+            }
+            Spacer(Modifier.width(6.dp))
+            Text(text = statusLabel(visual), style = MaterialTheme.typography.labelMedium)
+        }
+    }
+}
+
+@Composable
+private fun StaticStatusDot(color: Color) {
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier.size(10.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .size(6.dp)
+                .clip(CircleShape)
+                .background(color),
+        )
+    }
+}
+
+@Composable
+private fun PulsingStatusDot(color: Color) {
     val pulse = rememberInfiniteTransition(label = "status-pulse")
     val pulseScale by pulse.animateFloat(
         initialValue = 1f,
@@ -93,48 +133,23 @@ fun StatusBadge(
         ),
         label = "pulse-a",
     )
-
-    Surface(
-        modifier = modifier,
-        shape = CircleShape,
-        color = bg,
-        contentColor = fg,
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
-        ) {
-            Box(contentAlignment = Alignment.Center, modifier = Modifier.size(10.dp)) {
-                if (pulsing) {
-                    Box(
-                        modifier = Modifier
-                            .size(8.dp)
-                            .graphicsLayer {
-                                scaleX = pulseScale
-                                scaleY = pulseScale
-                                alpha = pulseAlpha
-                            }
-                            .clip(CircleShape)
-                            .background(fg.copy(alpha = 0.45f)),
-                    )
+    Box(contentAlignment = Alignment.Center, modifier = Modifier.size(10.dp)) {
+        Box(
+            modifier = Modifier
+                .size(8.dp)
+                .graphicsLayer {
+                    scaleX = pulseScale
+                    scaleY = pulseScale
+                    alpha = pulseAlpha
                 }
-                Box(
-                    modifier = Modifier
-                        .size(6.dp)
-                        .clip(CircleShape)
-                        .background(fg),
-                )
-            }
-            Spacer(Modifier.width(6.dp))
-            AnimatedContent(
-                targetState = statusLabel(visual),
-                transitionSpec = {
-                    fadeIn(tween(180)) togetherWith fadeOut(tween(140))
-                },
-                label = "badge-label",
-            ) { label ->
-                Text(text = label, style = MaterialTheme.typography.labelMedium)
-            }
-        }
+                .clip(CircleShape)
+                .background(color.copy(alpha = 0.45f)),
+        )
+        Box(
+            modifier = Modifier
+                .size(6.dp)
+                .clip(CircleShape)
+                .background(color),
+        )
     }
 }
