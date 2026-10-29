@@ -1,7 +1,12 @@
 package com.proxpanel.app.ui.backups
 
-import androidx.compose.foundation.clickable
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,6 +31,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CloudUpload
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.outlined.Inventory2
@@ -183,28 +190,18 @@ fun BackupsScreen(viewModel: BackupsViewModel) {
             )
             if (state.scheduleJobs.isNotEmpty()) {
                 Spacer(Modifier.height(ProxSpace.sm))
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = ProxSpace.screen),
-                    verticalArrangement = Arrangement.spacedBy(ProxSpace.sm),
-                ) {
-                    Text(
-                        stringResource(R.string.backups_schedules_title),
-                        style = MaterialTheme.typography.titleSmall,
-                    )
-                    Text(
-                        stringResource(R.string.backups_schedules_subtitle),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    state.scheduleJobs.forEach { job ->
-                        ScheduleJobCard(job = job, guests = state.guests)
-                    }
-                }
+                ScheduledBackupsPanel(
+                    jobs = state.scheduleJobs,
+                    guests = state.guests,
+                    expanded = state.schedulesExpanded,
+                    onToggle = {
+                        haptics.tick()
+                        viewModel.toggleSchedulesExpanded()
+                    },
+                )
                 Spacer(Modifier.height(ProxSpace.md))
                 Text(
-                    stringResource(R.string.backups_guests_section),
+                    stringResource(R.string.backups_entries_section),
                     style = MaterialTheme.typography.titleSmall,
                     modifier = Modifier.padding(horizontal = ProxSpace.screen),
                 )
@@ -822,6 +819,79 @@ private fun SimpleDropdown(
                         onSelect(opt)
                     },
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ScheduledBackupsPanel(
+    jobs: List<BackupScheduleJob>,
+    guests: List<BackupOverviewGuest>,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+) {
+    val activeCount = jobs.count { it.enabled }
+    val collapsedSummary = stringResource(
+        R.string.backups_schedules_collapsed,
+        jobs.size,
+        activeCount,
+    )
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = ProxSpace.screen)
+            .clip(MaterialTheme.shapes.medium)
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onToggle)
+                .padding(horizontal = ProxSpace.md, vertical = ProxSpace.sm),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(ProxSpace.sm),
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(R.string.backups_schedules_title),
+                    style = MaterialTheme.typography.titleSmall,
+                )
+                if (!expanded) {
+                    Text(
+                        text = collapsedSummary,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+            Icon(
+                imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                contentDescription = stringResource(
+                    if (expanded) R.string.cd_collapse_schedules else R.string.cd_expand_schedules,
+                ),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        AnimatedVisibility(
+            visible = expanded,
+            enter = fadeIn() + expandVertically(),
+            exit = fadeOut() + shrinkVertically(),
+        ) {
+            Column(
+                modifier = Modifier.padding(start = ProxSpace.md, end = ProxSpace.md, bottom = ProxSpace.md),
+                verticalArrangement = Arrangement.spacedBy(ProxSpace.sm),
+            ) {
+                Text(
+                    stringResource(R.string.backups_schedules_subtitle),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                jobs.forEach { job ->
+                    ScheduleJobCard(job = job, guests = guests)
+                }
             }
         }
     }

@@ -67,6 +67,7 @@ class PrefsStore(context: Context) {
         val refreshInterval = stringPreferencesKey("refresh_interval")
         val guestIcons = stringPreferencesKey("guest_icons")
         val clusterDashboardExpanded = booleanPreferencesKey("cluster_dashboard_expanded")
+        val backupSchedulesExpanded = booleanPreferencesKey("backup_schedules_expanded")
     }
 
     val pinnedGuestKeys: Flow<Set<String>> = ds.data.map { it[Keys.pinnedGuests].orEmpty() }
@@ -83,6 +84,10 @@ class PrefsStore(context: Context) {
     /** Cluster overview panel on Guests; default collapsed to keep the list visible. */
     val clusterDashboardExpanded: Flow<Boolean> =
         ds.data.map { it[Keys.clusterDashboardExpanded] ?: false }
+
+    /** Scheduled backup jobs panel; default collapsed. */
+    val backupSchedulesExpanded: Flow<Boolean> =
+        ds.data.map { it[Keys.backupSchedulesExpanded] ?: false }
 
     val guestIcons: Flow<Map<String, GuestIconRecord>> = ds.data.map { prefs ->
         val raw = prefs[Keys.guestIcons] ?: return@map emptyMap()
@@ -116,6 +121,10 @@ class PrefsStore(context: Context) {
 
     suspend fun setClusterDashboardExpanded(expanded: Boolean) {
         ds.edit { it[Keys.clusterDashboardExpanded] = expanded }
+    }
+
+    suspend fun setBackupSchedulesExpanded(expanded: Boolean) {
+        ds.edit { it[Keys.backupSchedulesExpanded] = expanded }
     }
 
     suspend fun setGuestIcon(key: String, record: GuestIconRecord?) {

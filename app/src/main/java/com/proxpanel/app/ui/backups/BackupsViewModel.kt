@@ -28,6 +28,7 @@ data class BackupsUiState(
     val guests: List<BackupOverviewGuest> = emptyList(),
     val storages: List<BackupStorage> = emptyList(),
     val scheduleJobs: List<BackupScheduleJob> = emptyList(),
+    val schedulesExpanded: Boolean = false,
     val viewMode: NodesViewMode = NodesViewMode.Cards,
     val loading: Boolean = true,
     val refreshing: Boolean = false,
@@ -83,12 +84,23 @@ class BackupsViewModel(
                 _state.update { it.copy(viewMode = mode) }
             }
         }
+        viewModelScope.launch {
+            prefsStore.backupSchedulesExpanded.collect { expanded ->
+                _state.update { it.copy(schedulesExpanded = expanded) }
+            }
+        }
         refresh(initial = true)
         startPolling()
     }
 
     fun setViewMode(mode: NodesViewMode) {
         viewModelScope.launch { prefsStore.setNodesViewMode(mode) }
+    }
+
+    fun toggleSchedulesExpanded() {
+        val next = !_state.value.schedulesExpanded
+        _state.update { it.copy(schedulesExpanded = next) }
+        viewModelScope.launch { prefsStore.setBackupSchedulesExpanded(next) }
     }
 
     fun refresh(initial: Boolean = false) {

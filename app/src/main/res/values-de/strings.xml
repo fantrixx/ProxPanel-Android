@@ -63,12 +63,14 @@
     <string name="cd_view_info">Über diese Ansicht</string>
     <string name="cd_expand_cluster">Cluster-Übersicht aufklappen</string>
     <string name="cd_collapse_cluster">Cluster-Übersicht einklappen</string>
+    <string name="cd_expand_schedules">Geplante Backups aufklappen</string>
+    <string name="cd_collapse_schedules">Geplante Backups einklappen</string>
 
     <!-- Screen help (inline info) -->
     <string name="info_guests">Übersicht aller VMs und Container in deinem Cluster.\n\nDas Cluster-Dashboard oben zeigt Node-Status, Storage, HA sowie aktuelle Tasks/Jobs. Nach Status oder Typ filtern, nach Namen suchen, Favoriten anheften sowie starten, stoppen oder neu starten. Langer Druck für Schnellaktionen, Tippen öffnet die Details. Logos über den Icon-Picker ändern. Nach unten ziehen zum Aktualisieren; Live-Werte pausieren während des Scrollens.</string>
     <string name="info_backups">Oben siehst du geplante Proxmox-Backup-Jobs, darunter das neueste Backup je Gast.\n\nGast antippen für Backup-Historie, Restore und Volume-Verwaltung. Alte Backup-Volumes kannst du löschen, um Speicher freizugeben. Laufende Backup-Jobs erscheinen unter dem Titel.</string>
     <string name="info_storage">Nodes und Storage-Pools mit belegtem und freiem Speicher.\n\nInhaltstypen (Images, Backups, ISOs, Snippets), Online-Status und Kapazität im Cluster prüfen. Mit Suche schnell einen Pool finden. Nach unten ziehen zum Aktualisieren.</string>
-    <string name="info_tasks">Aktuelle Proxmox-Tasks wie Backups, Power-Aktionen, Migrationen und Creates.\n\nZeile aufklappen für Live-Log und Status. Fehlgeschlagene oder laufende Jobs sind leicht erkennbar. Nach unten ziehen zum Aktualisieren.</string>
+    <string name="info_tasks">Aktuelle Proxmox-Tasks wie Backups, Power-Aktionen, Migrationen und Creates.\n\nNach Status (laufend, fertig, fehlgeschlagen) oder Typ (Backup, Power, Migration…) filtern. Zeile aufklappen für Live-Log. Nach unten ziehen zum Aktualisieren.</string>
     <string name="info_media">ISO-Images und LXC-Templates auf deinen Storages.\n\nZwischen ISOs und Templates wechseln, nach Namen suchen und sehen, auf welchem Storage die Datei liegt. Nutze sie beim Anlegen neuer VMs oder Container.</string>
     <string name="info_apps">Community-Hilfsskripte für gängige Apps (Docker, Home Assistant und mehr).\n\nNach Beliebteste oder A–Z sortieren, Katalog durchsuchen, dann den Install-Befehl kopieren und auf dem Proxmox-Host ausführen—oder die Projektseite im Browser öffnen. Installationszahlen stammen aus öffentlicher Community-Telemetrie.</string>
     <string name="info_settings">App-Einstellungen für dieses Gerät.\n\nAktualisierungsintervall und Akzentfarbe festlegen sowie den Datenschutzhinweis lesen. Zugangsdaten bleiben auf dem Gerät. Abmelden geht über die Übersicht.</string>
@@ -207,8 +209,10 @@
     <string name="ha_badge">HA · %1$s</string>
     <string name="cluster_ha">HA</string>
     <string name="backups_schedules_title">Geplante Backups</string>
-    <string name="backups_schedules_subtitle">Automatische Jobs aus Proxmox (Datacenter → Backup). Darunter: letztes Backup je Gast.</string>
-    <string name="backups_guests_section">Gäste</string>
+    <string name="backups_schedules_subtitle">Automatische Jobs aus Proxmox (Datacenter → Backup).</string>
+    <string name="backups_schedules_collapsed">%1$d Jobs · %2$d aktiv</string>
+    <string name="backups_entries_section">Einträge</string>
+    <string name="backups_guests_section">Einträge</string>
     <string name="backups_schedule_active">Aktiv</string>
     <string name="backups_schedule_disabled">Deaktiviert</string>
     <string name="backups_schedule_selection">VMs: %1$s</string>
@@ -346,11 +350,19 @@
     <string name="tasks_loading">Tasks laden…</string>
     <string name="tasks_empty">Keine Tasks</string>
     <string name="tasks_empty_subtitle">Cluster-Aufgaben erscheinen hier</string>
+    <string name="tasks_empty_filtered">Keine passenden Tasks</string>
     <string name="tasks_log_loading">Details laden…</string>
     <string name="tasks_log_empty">Keine weiteren Details.</string>
-    <string name="task_outcome_running">Running</string>
-    <string name="task_outcome_failed">Failed</string>
-    <string name="task_outcome_done">Done</string>
+    <string name="task_outcome_running">Laufend</string>
+    <string name="task_outcome_failed">Fehlgeschlagen</string>
+    <string name="task_outcome_done">Fertig</string>
+    <string name="task_kind_backup">Backup</string>
+    <string name="task_kind_restore">Restore</string>
+    <string name="task_kind_power">Power</string>
+    <string name="task_kind_snapshot">Snapshot</string>
+    <string name="task_kind_migrate">Migration</string>
+    <string name="task_kind_clone">Klon</string>
+    <string name="task_kind_host">Host</string>
     <string name="task_duration_so_far">%1$s bisher</string>
 
     <!-- Marketplace -->

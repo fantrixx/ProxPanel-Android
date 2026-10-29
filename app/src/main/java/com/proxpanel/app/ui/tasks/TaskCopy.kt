@@ -8,6 +8,23 @@ enum class TaskKind { Backup, Restore, Power, Snapshot, Migrate, Clone, Host, Ot
 
 enum class TaskOutcome { Running, Ok, Fail }
 
+enum class TaskStatusFilter { All, Running, Ok, Fail }
+
+enum class TaskKindFilter {
+    All, Backup, Restore, Power, Snapshot, Migrate, Clone, Host;
+
+    fun matches(kind: TaskKind): Boolean = when (this) {
+        All -> true
+        Backup -> kind == TaskKind.Backup
+        Restore -> kind == TaskKind.Restore
+        Power -> kind == TaskKind.Power
+        Snapshot -> kind == TaskKind.Snapshot
+        Migrate -> kind == TaskKind.Migrate
+        Clone -> kind == TaskKind.Clone
+        Host -> kind == TaskKind.Host
+    }
+}
+
 fun parseUpid(upid: String): Map<String, String?> {
     if (!upid.startsWith("UPID:")) return emptyMap()
     val parts = upid.split(':')

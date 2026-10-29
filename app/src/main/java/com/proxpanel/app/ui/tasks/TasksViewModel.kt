@@ -20,6 +20,8 @@ data class TasksUiState(
     val tasks: List<PveTask> = emptyList(),
     val guests: Map<String, TaskGuestRef> = emptyMap(),
     val query: String = "",
+    val statusFilter: TaskStatusFilter = TaskStatusFilter.All,
+    val kindFilter: TaskKindFilter = TaskKindFilter.All,
     val viewMode: NodesViewMode = NodesViewMode.Cards,
     val loading: Boolean = true,
     val refreshing: Boolean = false,
@@ -52,12 +54,38 @@ class TasksViewModel(
 
     fun setQuery(value: String) = _state.update { it.copy(query = value) }
 
+    fun setStatusFilter(filter: TaskStatusFilter) = _state.update {
+        it.copy(statusFilter = if (it.statusFilter == filter) TaskStatusFilter.All else filter)
+    }
+
+    fun setKindFilter(filter: TaskKindFilter) = _state.update {
+        it.copy(kindFilter = if (it.kindFilter == filter) TaskKindFilter.All else filter)
+    }
+
+    fun clearFilters() = _state.update {
+        it.copy(
+            query = "",
+            statusFilter = TaskStatusFilter.All,
+            kindFilter = TaskKindFilter.All,
+        )
+    }
+
     fun filtered(): List<PveTask> {
         val q = _state.value.query.trim().lowercase()
         val guests = _state.value.guests
+        val statusFilter = _state.value.statusFilter
+        val kindFilter = _state.value.kindFilter
         return _state.value.tasks.filter { task ->
-            if (q.isEmpty()) return@filter true
             val copy = describeTask(task, guests)
+            val statusOk = when (statusFilter) {
+                TaskStatusFilter.All -> true
+                TaskStatusFilter.Running -> copy.outcome == TaskOutcome.Running
+                TaskStatusFilter.Ok -> copy.outcome == TaskOutcome.Ok
+                TaskStatusFilter.Fail -> copy.outcome == TaskOutcome.Fail
+            }
+            if (!statusOk) return@filter false
+            if (!kindFilter.matches(copy.kind)) return@filter false
+            if (q.isEmpty()) return@filter true
             copy.title.lowercase().contains(q) ||
                 copy.kindLabel.lowercase().contains(q) ||
                 copy.node.lowercase().contains(q) ||
