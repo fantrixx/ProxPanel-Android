@@ -21,7 +21,7 @@ private data class ServerProfileDto(
     val host: String,
     val username: String,
     val realm: String = "pam",
-    val verifyTls: Boolean = false,
+    val verifyTls: Boolean = true,
 )
 
 class ServerProfileStore(private val context: Context) {

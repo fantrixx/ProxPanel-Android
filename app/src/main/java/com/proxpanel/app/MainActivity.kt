@@ -7,13 +7,20 @@ import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
@@ -28,9 +35,14 @@ import com.proxpanel.app.ui.create.CreateGuestType
 import com.proxpanel.app.ui.create.CreateGuestViewModel
 import com.proxpanel.app.ui.detail.GuestDetailScreen
 import com.proxpanel.app.ui.detail.GuestDetailViewModel
+import com.proxpanel.app.ui.components.ActiveJobsChrome
+import com.proxpanel.app.ui.components.JobToastHost
+import com.proxpanel.app.ui.components.LocalActiveJobsChrome
+import com.proxpanel.app.ui.components.SuccessBurstOverlay
 import com.proxpanel.app.ui.login.LoginScreen
 import com.proxpanel.app.ui.login.LoginViewModel
 import com.proxpanel.app.ui.shell.HomeShell
+import com.proxpanel.app.ui.shell.HomeTab
 import com.proxpanel.app.R
 import com.proxpanel.app.ui.theme.ProxPanelTheme
 import java.net.URLDecoder
@@ -67,105 +79,135 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun ProxPanelNav(container: AppContainer) {
     val nav = rememberNavController()
+    val jobTracker = container.jobTracker
+    val jobsChrome = remember(jobTracker) {
+        ActiveJobsChrome(
+            tracker = jobTracker,
+            onOpenTasks = {
+                container.pendingHomeTab.value = HomeTab.Tasks.route
+                nav.navigate("home") {
+                    launchSingleTop = true
+                    restoreState = true
+                }
+            },
+        )
+    }
 
-    NavHost(navController = nav, startDestination = "login") {
-        composable("login") {
-            val vm: LoginViewModel = viewModel(
-                factory = LoginViewModel.factory(
-                    container.api,
-                    container.sessionStore,
-                    container.credentialStore,
-                    container.serverProfileStore,
-                    container.l10n,
-                ),
-            )
-            LoginScreen(
-                viewModel = vm,
-                onSignedIn = {
-                    nav.navigate("home") {
-                        popUpTo("login") { inclusive = true }
-                    }
-                },
-            )
-        }
-
-        composable("home") {
-            HomeShell(
-                container = container,
-                onOpenGuest = { guest ->
-                    nav.navigate(
-                        "guest/${guest.type}/${enc(guest.node)}/${guest.vmid}/${enc(guest.name)}/${enc(guest.status)}",
+    CompositionLocalProvider(LocalActiveJobsChrome provides jobsChrome) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            NavHost(navController = nav, startDestination = "login") {
+                composable("login") {
+                    val vm: LoginViewModel = viewModel(
+                        factory = LoginViewModel.factory(
+                            container.api,
+                            container.sessionStore,
+                            container.credentialStore,
+                            container.serverProfileStore,
+                            container.l10n,
+                        ),
                     )
-                },
-                onCreateGuest = { nav.navigate("create") },
-                onLogout = {
-                    nav.navigate("login") {
-                        popUpTo("home") { inclusive = true }
-                    }
-                },
-            )
-        }
-
-        composable("create") {
-            val vm: CreateGuestViewModel = viewModel(
-                factory = CreateGuestViewModel.factory(container.api, container.l10n, CreateGuestType.Lxc),
-            )
-            CreateGuestScreen(
-                viewModel = vm,
-                onBack = { nav.popBackStack() },
-                onCreated = { result ->
-                    container.jobTracker.trackCreate(
-                        node = result.node,
-                        type = result.type,
-                        vmid = result.vmid,
-                        upid = result.upid,
+                    LoginScreen(
+                        viewModel = vm,
+                        onSignedIn = {
+                            nav.navigate("home") {
+                                popUpTo("login") { inclusive = true }
+                            }
+                        },
                     )
-                    nav.navigate(
-                        "guest/${result.type}/${enc(result.node)}/${result.vmid}/${enc(container.l10n.get(R.string.guest_fallback_name, result.vmid))}/creating",
-                    ) {
-                        popUpTo("home")
-                    }
-                },
-            )
-        }
+                }
 
-        composable(
-            route = "guest/{type}/{node}/{vmid}/{name}/{status}",
-            arguments = listOf(
-                navArgument("type") { type = NavType.StringType },
-                navArgument("node") { type = NavType.StringType },
-                navArgument("vmid") { type = NavType.IntType },
-                navArgument("name") { type = NavType.StringType },
-                navArgument("status") { type = NavType.StringType },
-            ),
-        ) { entry ->
-            val guest = remember(entry.arguments) {
-                GuestItem(
-                    node = dec(entry.arguments!!.getString("node")!!),
-                    type = entry.arguments!!.getString("type")!!,
-                    vmid = entry.arguments!!.getInt("vmid"),
-                    name = dec(entry.arguments!!.getString("name")!!),
-                    status = dec(entry.arguments!!.getString("status")!!),
-                    cpu = null,
-                    mem = null,
-                    maxmem = null,
-                    disk = null,
-                    maxdisk = null,
-                    uptime = null,
-                    ips = emptyList(),
-                    lock = null,
-                )
+                composable("home") {
+                    HomeShell(
+                        container = container,
+                        onOpenGuest = { guest ->
+                            nav.navigate(
+                                "guest/${guest.type}/${enc(guest.node)}/${guest.vmid}/${enc(guest.name)}/${enc(guest.status)}",
+                            )
+                        },
+                        onCreateGuest = { nav.navigate("create") },
+                        onLogout = {
+                            nav.navigate("login") {
+                                popUpTo("home") { inclusive = true }
+                            }
+                        },
+                    )
+                }
+
+                composable("create") {
+                    val vm: CreateGuestViewModel = viewModel(
+                        factory = CreateGuestViewModel.factory(container.api, container.l10n, CreateGuestType.Lxc),
+                    )
+                    CreateGuestScreen(
+                        viewModel = vm,
+                        onBack = { nav.popBackStack() },
+                        onCreated = { result ->
+                            container.jobTracker.trackCreate(
+                                node = result.node,
+                                type = result.type,
+                                vmid = result.vmid,
+                                upid = result.upid,
+                            )
+                            nav.navigate(
+                                "guest/${result.type}/${enc(result.node)}/${result.vmid}/${enc(container.l10n.get(R.string.guest_fallback_name, result.vmid))}/creating",
+                            ) {
+                                popUpTo("home")
+                            }
+                        },
+                    )
+                }
+
+                composable(
+                    route = "guest/{type}/{node}/{vmid}/{name}/{status}",
+                    arguments = listOf(
+                        navArgument("type") { type = NavType.StringType },
+                        navArgument("node") { type = NavType.StringType },
+                        navArgument("vmid") { type = NavType.IntType },
+                        navArgument("name") { type = NavType.StringType },
+                        navArgument("status") { type = NavType.StringType },
+                    ),
+                ) { entry ->
+                    val guest = remember(entry.arguments) {
+                        GuestItem(
+                            node = dec(entry.arguments!!.getString("node")!!),
+                            type = entry.arguments!!.getString("type")!!,
+                            vmid = entry.arguments!!.getInt("vmid"),
+                            name = dec(entry.arguments!!.getString("name")!!),
+                            status = dec(entry.arguments!!.getString("status")!!),
+                            cpu = null,
+                            mem = null,
+                            maxmem = null,
+                            disk = null,
+                            maxdisk = null,
+                            uptime = null,
+                            ips = emptyList(),
+                            lock = null,
+                        )
+                    }
+                    val vm: GuestDetailViewModel = viewModel(
+                        factory = GuestDetailViewModel.factory(
+                            container.api,
+                            container.jobTracker,
+                            container.prefsStore,
+                            container.l10n,
+                            guest,
+                        ),
+                    )
+                    GuestDetailScreen(viewModel = vm, onBack = { nav.popBackStack() })
+                }
             }
-            val vm: GuestDetailViewModel = viewModel(
-                factory = GuestDetailViewModel.factory(
-                    container.api,
-                    container.jobTracker,
-                    container.prefsStore,
-                    container.l10n,
-                    guest,
-                ),
+
+            JobToastHost(
+                tracker = jobTracker,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .navigationBarsPadding()
+                    .padding(bottom = 100.dp),
             )
-            GuestDetailScreen(viewModel = vm, onBack = { nav.popBackStack() })
+            val celebration by jobTracker.celebration.collectAsState()
+            SuccessBurstOverlay(
+                celebration = celebration,
+                onDismiss = jobTracker::clearCelebration,
+            )
         }
     }
 }

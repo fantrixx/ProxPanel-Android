@@ -183,7 +183,9 @@ fun GuestDetailScreen(
                 },
                 actions = {
                     IconButton(onClick = {
-                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(viewModel.consoleUrl())))
+                        runCatching {
+                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(viewModel.consoleUrl())))
+                        }
                     }) {
                         Icon(Icons.Default.OpenInBrowser, contentDescription = stringResource(R.string.cd_console))
                     }
@@ -197,6 +199,7 @@ fun GuestDetailScreen(
                 .fillMaxSize()
                 .padding(padding),
         ) {
+            com.proxpanel.app.ui.components.ActiveJobsBelowTitle()
             DetailTabBar(
                 selected = state.tab,
                 onSelect = viewModel::setTab,

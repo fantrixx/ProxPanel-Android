@@ -61,6 +61,8 @@
     <string name="cd_console">Console</string>
     <string name="cd_clear_search">Suche löschen</string>
     <string name="cd_view_info">Über diese Ansicht</string>
+    <string name="cd_expand_cluster">Cluster-Übersicht aufklappen</string>
+    <string name="cd_collapse_cluster">Cluster-Übersicht einklappen</string>
 
     <!-- Screen help (inline info) -->
     <string name="info_guests">Übersicht aller VMs und Container in deinem Cluster.\n\nDas Cluster-Dashboard oben zeigt Node-Status, Storage, HA sowie aktuelle Tasks/Jobs. Nach Status oder Typ filtern, nach Namen suchen, Favoriten anheften sowie starten, stoppen oder neu starten. Langer Druck für Schnellaktionen, Tippen öffnet die Details. Logos über den Icon-Picker ändern. Nach unten ziehen zum Aktualisieren; Live-Werte pausieren während des Scrollens.</string>
@@ -400,7 +402,7 @@
     <string name="refresh_interval_slow_hint">Akku-freundlich</string>
     <string name="refresh_interval_manual_label">Manuell</string>
     <string name="refresh_interval_manual_hint">Nur Pull-to-refresh</string>
-    <string name="privacy_body">ProxPanel speichert Anmeldedaten und Einstellungen nur lokal auf diesem Gerät (verschlüsselt bzw. in App-Preferences).\n\nDie App verbindet sich direkt mit deinem Proxmox-Server. Es werden keine Serverdaten an uns oder Drittanbieter übertragen.\n\nOptional werden Marketplace-Scripts aus öffentlichen Quellen geladen. Dabei entsteht eine Netzwerkverbindung zu dem jeweiligen Katalog-Host.\n\nDu kannst die App jederzeit deinstallieren, um alle lokalen Daten zu entfernen.</string>
+    <string name="privacy_body">ProxPanel speichert Anmeldedaten und Einstellungen nur lokal auf diesem Gerät (Passwörter verschlüsselt; Session-Tickets in App-Preferences).\n\nDie App verbindet sich direkt mit deinem Proxmox-Server. Gast- und Clusterdaten bleiben zwischen Gerät und Server — wir betreiben kein ProxPanel-Backend.\n\nOptional werden Marketplace-Katalog/Telemetrie und Service-Icons von öffentlichen Hosts geladen (community-scripts.org und ein öffentliches CDN). Netzwerkverbindungen dorthin entstehen nur, wenn du Apps öffnest bzw. Logos anzeigst.\n\nDu kannst die App jederzeit deinstallieren, um alle lokalen Daten zu entfernen.\n\nFür Google Play brauchst du zusätzlich eine Datenschutz-URL in der Play Console, die zu dieser Beschreibung passt.</string>
 
     <!-- Cluster bar -->
     <string name="cluster_dashboard_title">Cluster</string>

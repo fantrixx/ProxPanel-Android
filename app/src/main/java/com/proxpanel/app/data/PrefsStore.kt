@@ -1,8 +1,8 @@
 package com.proxpanel.app.data
 
 import android.content.Context
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
-import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -66,6 +66,7 @@ class PrefsStore(context: Context) {
         val nodesView = stringPreferencesKey("nodes_view_mode")
         val refreshInterval = stringPreferencesKey("refresh_interval")
         val guestIcons = stringPreferencesKey("guest_icons")
+        val clusterDashboardExpanded = booleanPreferencesKey("cluster_dashboard_expanded")
     }
 
     val pinnedGuestKeys: Flow<Set<String>> = ds.data.map { it[Keys.pinnedGuests].orEmpty() }
@@ -78,6 +79,10 @@ class PrefsStore(context: Context) {
 
     val refreshInterval: Flow<RefreshInterval> =
         ds.data.map { RefreshInterval.fromId(it[Keys.refreshInterval]) }
+
+    /** Cluster overview panel on Guests; default collapsed to keep the list visible. */
+    val clusterDashboardExpanded: Flow<Boolean> =
+        ds.data.map { it[Keys.clusterDashboardExpanded] ?: false }
 
     val guestIcons: Flow<Map<String, GuestIconRecord>> = ds.data.map { prefs ->
         val raw = prefs[Keys.guestIcons] ?: return@map emptyMap()
@@ -107,6 +112,10 @@ class PrefsStore(context: Context) {
 
     suspend fun setRefreshInterval(interval: RefreshInterval) {
         ds.edit { it[Keys.refreshInterval] = interval.id }
+    }
+
+    suspend fun setClusterDashboardExpanded(expanded: Boolean) {
+        ds.edit { it[Keys.clusterDashboardExpanded] = expanded }
     }
 
     suspend fun setGuestIcon(key: String, record: GuestIconRecord?) {

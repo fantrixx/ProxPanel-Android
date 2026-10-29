@@ -313,6 +313,11 @@ fun GuestsScreen(
                     Spacer(Modifier.height(ProxSpace.sm))
                     ClusterOverviewBar(
                         overview = state.cluster,
+                        expanded = state.clusterDashboardExpanded,
+                        onToggleExpanded = {
+                            haptics.tick()
+                            viewModel.toggleClusterDashboard()
+                        },
                         pulsing = state.refreshPulse || state.refreshing,
                     )
                 }

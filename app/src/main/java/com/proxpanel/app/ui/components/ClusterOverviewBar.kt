@@ -1,6 +1,12 @@
 package com.proxpanel.app.ui.components
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -12,6 +18,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -52,125 +62,180 @@ data class ClusterOverview(
 
 /**
  * Compact cluster dashboard built from `/cluster/resources`, recent tasks, and in-app jobs.
+ * Collapsed by default: header + one-line summary; expand for full metrics.
  */
 @Composable
 fun ClusterOverviewBar(
     overview: ClusterOverview,
+    expanded: Boolean,
+    onToggleExpanded: () -> Unit,
     @Suppress("UNUSED_PARAMETER") pulsing: Boolean,
     modifier: Modifier = Modifier,
 ) {
+    val nodesLabel = if (overview.nodesTotal > 0) {
+        "${overview.nodesOnline}/${overview.nodesTotal}"
+    } else {
+        stringResource(R.string.empty_dash)
+    }
+    val freeLabel = overview.storageFree?.let { formatBytes(it) } ?: stringResource(R.string.empty_dash)
+    val collapsedSummary = buildString {
+        append(stringResource(R.string.cluster_nodes))
+        append(' ')
+        append(nodesLabel)
+        append(" · ")
+        append(stringResource(R.string.cluster_running))
+        append(' ')
+        append("${overview.guestsRunning}/${overview.guestsTotal}")
+        append(" · ")
+        append(stringResource(R.string.cluster_free))
+        append(' ')
+        append(freeLabel)
+        if (overview.tasksFailed > 0) {
+            append(" · ")
+            append(stringResource(R.string.cluster_tasks_failed))
+            append(' ')
+            append(overview.tasksFailed)
+        }
+    }
+
     Column(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = ProxSpace.screen)
             .clip(MaterialTheme.shapes.medium)
-            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-            .padding(ProxSpace.md),
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh),
     ) {
-        Text(
-            text = stringResource(R.string.cluster_dashboard_title),
-            style = MaterialTheme.typography.titleSmall,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
-        Spacer(Modifier.height(ProxSpace.sm))
-
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onToggleExpanded)
+                .padding(horizontal = ProxSpace.md, vertical = ProxSpace.sm),
+            verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(ProxSpace.sm),
         ) {
-            DashMetric(
-                label = stringResource(R.string.cluster_nodes),
-                value = if (overview.nodesTotal > 0) {
-                    "${overview.nodesOnline}/${overview.nodesTotal}"
-                } else {
-                    stringResource(R.string.empty_dash)
-                },
-                accent = overview.nodesTotal > 0 && overview.nodesOnline == overview.nodesTotal,
-                warn = overview.nodesTotal > 0 && overview.nodesOnline < overview.nodesTotal,
-                modifier = Modifier.weight(1f),
-            )
-            DashMetric(
-                label = stringResource(R.string.cluster_running),
-                value = "${overview.guestsRunning}/${overview.guestsTotal}",
-                accent = overview.guestsRunning > 0,
-                modifier = Modifier.weight(1f),
-            )
-            DashMetric(
-                label = stringResource(R.string.cluster_free),
-                value = when {
-                    overview.storageFree != null -> formatBytes(overview.storageFree)
-                    else -> stringResource(R.string.empty_dash)
-                },
-                modifier = Modifier.weight(1f),
-            )
-        }
-
-        if (overview.storageTotal != null && overview.storageTotal > 0 && overview.storageUsed != null) {
-            Spacer(Modifier.height(ProxSpace.sm))
-            val usedPct = (overview.storageUsed.toDouble() / overview.storageTotal.toDouble() * 100.0)
-                .toFloat()
-                .coerceIn(0f, 100f)
-            MetricBar(
-                label = stringResource(
-                    R.string.cluster_storage_used,
-                    formatBytes(overview.storageUsed),
-                    formatBytes(overview.storageTotal),
-                ),
-                valueText = "${usedPct.toInt()}%",
-                progress = usedPct,
-            )
-        }
-
-        if (overview.nodes.isNotEmpty()) {
-            Spacer(Modifier.height(ProxSpace.sm))
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(ProxSpace.sm),
-            ) {
-                overview.nodes.forEach { node ->
-                    NodeChip(node = node)
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(R.string.cluster_dashboard_title),
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                if (!expanded) {
+                    Text(
+                        text = collapsedSummary,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 }
             }
+            Icon(
+                imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                contentDescription = stringResource(
+                    if (expanded) R.string.cd_collapse_cluster else R.string.cd_expand_cluster,
+                ),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
 
-        val showJobs = overview.activeJobs > 0 || overview.tasksRunning > 0 || overview.tasksFailed > 0
-        val showHa = overview.haManaged > 0
-        if (showJobs || showHa) {
-            Spacer(Modifier.height(ProxSpace.sm))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(ProxSpace.md),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                if (showHa) {
-                    StatusLine(
-                        label = stringResource(R.string.cluster_ha),
-                        value = overview.haManaged.toString(),
-                        colorGood = true,
+        AnimatedVisibility(
+            visible = expanded,
+            enter = fadeIn() + expandVertically(),
+            exit = fadeOut() + shrinkVertically(),
+        ) {
+            Column(modifier = Modifier.padding(start = ProxSpace.md, end = ProxSpace.md, bottom = ProxSpace.md)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(ProxSpace.sm),
+                ) {
+                    DashMetric(
+                        label = stringResource(R.string.cluster_nodes),
+                        value = nodesLabel,
+                        accent = overview.nodesTotal > 0 && overview.nodesOnline == overview.nodesTotal,
+                        warn = overview.nodesTotal > 0 && overview.nodesOnline < overview.nodesTotal,
+                        modifier = Modifier.weight(1f),
+                    )
+                    DashMetric(
+                        label = stringResource(R.string.cluster_running),
+                        value = "${overview.guestsRunning}/${overview.guestsTotal}",
+                        accent = overview.guestsRunning > 0,
+                        modifier = Modifier.weight(1f),
+                    )
+                    DashMetric(
+                        label = stringResource(R.string.cluster_free),
+                        value = freeLabel,
+                        modifier = Modifier.weight(1f),
                     )
                 }
-                if (overview.activeJobs > 0) {
-                    StatusLine(
-                        label = stringResource(R.string.cluster_jobs),
-                        value = overview.activeJobs.toString(),
-                        colorGood = true,
+
+                if (overview.storageTotal != null && overview.storageTotal > 0 && overview.storageUsed != null) {
+                    Spacer(Modifier.height(ProxSpace.sm))
+                    val usedPct = (overview.storageUsed.toDouble() / overview.storageTotal.toDouble() * 100.0)
+                        .toFloat()
+                        .coerceIn(0f, 100f)
+                    MetricBar(
+                        label = stringResource(
+                            R.string.cluster_storage_used,
+                            formatBytes(overview.storageUsed),
+                            formatBytes(overview.storageTotal),
+                        ),
+                        valueText = "${usedPct.toInt()}%",
+                        progress = usedPct,
                     )
                 }
-                if (overview.tasksRunning > 0) {
-                    StatusLine(
-                        label = stringResource(R.string.cluster_tasks_running),
-                        value = overview.tasksRunning.toString(),
-                        colorGood = true,
-                    )
+
+                if (overview.nodes.isNotEmpty()) {
+                    Spacer(Modifier.height(ProxSpace.sm))
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(ProxSpace.sm),
+                    ) {
+                        overview.nodes.forEach { node ->
+                            NodeChip(node = node)
+                        }
+                    }
                 }
-                if (overview.tasksFailed > 0) {
-                    StatusLine(
-                        label = stringResource(R.string.cluster_tasks_failed),
-                        value = overview.tasksFailed.toString(),
-                        colorBad = true,
-                    )
+
+                val showJobs = overview.activeJobs > 0 || overview.tasksRunning > 0 || overview.tasksFailed > 0
+                val showHa = overview.haManaged > 0
+                if (showJobs || showHa) {
+                    Spacer(Modifier.height(ProxSpace.sm))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(ProxSpace.md),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        if (showHa) {
+                            StatusLine(
+                                label = stringResource(R.string.cluster_ha),
+                                value = overview.haManaged.toString(),
+                                colorGood = true,
+                            )
+                        }
+                        if (overview.activeJobs > 0) {
+                            StatusLine(
+                                label = stringResource(R.string.cluster_jobs),
+                                value = overview.activeJobs.toString(),
+                                colorGood = true,
+                            )
+                        }
+                        if (overview.tasksRunning > 0) {
+                            StatusLine(
+                                label = stringResource(R.string.cluster_tasks_running),
+                                value = overview.tasksRunning.toString(),
+                                colorGood = true,
+                            )
+                        }
+                        if (overview.tasksFailed > 0) {
+                            StatusLine(
+                                label = stringResource(R.string.cluster_tasks_failed),
+                                value = overview.tasksFailed.toString(),
+                                colorBad = true,
+                            )
+                        }
+                    }
                 }
             }
         }

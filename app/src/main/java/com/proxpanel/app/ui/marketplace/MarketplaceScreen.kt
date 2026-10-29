@@ -180,9 +180,11 @@ fun MarketplaceScreen(viewModel: MarketplaceViewModel) {
                         scope.launch { snackbar.showSnackbar(copiedMessage) }
                     }
                     val onOpen: (MarketplaceScript) -> Unit = { script ->
-                        context.startActivity(
-                            Intent(Intent.ACTION_VIEW, Uri.parse(script.pageUrl)),
-                        )
+                        runCatching {
+                            context.startActivity(
+                                Intent(Intent.ACTION_VIEW, Uri.parse(script.pageUrl)),
+                            )
+                        }
                     }
                     when (state.viewMode) {
                         NodesViewMode.Cards -> {

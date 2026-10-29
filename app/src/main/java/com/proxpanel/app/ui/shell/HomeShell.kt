@@ -10,7 +10,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -26,10 +26,6 @@ import com.proxpanel.app.AppContainer
 import com.proxpanel.app.data.GuestItem
 import com.proxpanel.app.ui.backups.BackupsScreen
 import com.proxpanel.app.ui.backups.BackupsViewModel
-import com.proxpanel.app.ui.components.ActiveJobsChrome
-import com.proxpanel.app.ui.components.JobToastHost
-import com.proxpanel.app.ui.components.LocalActiveJobsChrome
-import com.proxpanel.app.ui.components.SuccessBurstOverlay
 import com.proxpanel.app.ui.guests.GuestsScreen
 import com.proxpanel.app.ui.guests.GuestsViewModel
 import com.proxpanel.app.ui.marketplace.MarketplaceScreen
@@ -44,6 +40,7 @@ import com.proxpanel.app.ui.tasks.TasksScreen
 import com.proxpanel.app.ui.tasks.TasksViewModel
 import com.proxpanel.app.ui.util.ListScrollSession
 import com.proxpanel.app.ui.util.LocalListScrollSession
+import kotlinx.coroutines.flow.collectLatest
 
 @Composable
 fun HomeShell(
@@ -66,148 +63,132 @@ fun HomeShell(
     val jobTracker = container.jobTracker
     val scrollSession = remember { ListScrollSession() }
 
-    val jobsChrome = ActiveJobsChrome(
-        tracker = jobTracker,
-        onOpenTasks = {
-            tabNav.navigate(HomeTab.Tasks.route) {
+    LaunchedEffect(tabNav) {
+        container.pendingHomeTab.collectLatest { route ->
+            if (route.isNullOrBlank()) return@collectLatest
+            tabNav.navigate(route) {
                 popUpTo(tabNav.graph.findStartDestination().id) { saveState = true }
                 launchSingleTop = true
                 restoreState = true
             }
-        },
-    )
+            container.pendingHomeTab.value = null
+        }
+    }
 
     // Provide the session object only — never `session.scrolling` here, or the
     // whole NavHost recomposes on every fling start/stop.
-    // Job banner lives below each screen title via LocalActiveJobsChrome.
-    CompositionLocalProvider(
-        LocalListScrollSession provides scrollSession,
-        LocalActiveJobsChrome provides jobsChrome,
-    ) {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background),
-    ) {
-        Column(
+    // Job banner/toasts come from LocalActiveJobsChrome in MainActivity.
+    CompositionLocalProvider(LocalListScrollSession provides scrollSession) {
+        Box(
             modifier = Modifier
                 .fillMaxSize()
-                .statusBarsPadding(),
+                .background(MaterialTheme.colorScheme.background),
         ) {
-            Box(modifier = Modifier.weight(1f)) {
-                NavHost(
-                    navController = tabNav,
-                    startDestination = HomeTab.Overview.route,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(bottom = 88.dp),
-                ) {
-                    composable(HomeTab.Overview.route) {
-                        GuestsScreen(
-                            viewModel = guestsVm,
-                            jobTracker = jobTracker,
-                            onOpenGuest = onOpenGuest,
-                            onCreateGuest = onCreateGuest,
-                            onLogout = onLogout,
-                        )
-                    }
-                    composable(HomeTab.Backups.route) {
-                        val vm: BackupsViewModel = viewModel(
-                            factory = BackupsViewModel.factory(
-                                container.api,
-                                jobTracker,
-                                container.l10n,
-                                container.prefsStore,
-                            ),
-                        )
-                        BackupsScreen(viewModel = vm)
-                    }
-                    composable(HomeTab.Storage.route) {
-                        val vm: StorageViewModel = viewModel(
-                            factory = StorageViewModel.factory(
-                                container.api,
-                                container.l10n,
-                                container.prefsStore,
-                            ),
-                        )
-                        StorageScreen(viewModel = vm)
-                    }
-                    composable(HomeTab.Tasks.route) {
-                        val vm: TasksViewModel = viewModel(
-                            factory = TasksViewModel.factory(
-                                container.api,
-                                container.l10n,
-                                container.prefsStore,
-                            ),
-                        )
-                        TasksScreen(viewModel = vm)
-                    }
-                    composable(HomeTab.Media.route) {
-                        val vm: MediaViewModel = viewModel(
-                            factory = MediaViewModel.factory(
-                                container.api,
-                                container.l10n,
-                                container.prefsStore,
-                            ),
-                        )
-                        MediaScreen(viewModel = vm)
-                    }
-                    composable(HomeTab.Apps.route) {
-                        val vm: MarketplaceViewModel = viewModel(
-                            factory = MarketplaceViewModel.factory(
-                                container.l10n,
-                                container.prefsStore,
-                            ),
-                        )
-                        MarketplaceScreen(viewModel = vm)
-                    }
-                    composable(HomeTab.Settings.route) {
-                        val vm: SettingsViewModel = viewModel(
-                            factory = SettingsViewModel.factory(
-                                container.prefsStore,
-                                container.serverProfileStore,
-                                container.sessionStore,
-                                container.credentialStore,
-                                container.api,
-                            ),
-                        )
-                        SettingsScreen(
-                            viewModel = vm,
-                            onSwitchServer = onLogout,
-                        )
-                    }
-                }
-
-                FloatingBottomNav(
-                    selectedRoute = current,
-                    onSelect = { tab ->
-                        tabNav.navigate(tab.route) {
-                            popUpTo(tabNav.graph.findStartDestination().id) { saveState = true }
-                            launchSingleTop = true
-                            restoreState = true
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .statusBarsPadding(),
+            ) {
+                Box(modifier = Modifier.weight(1f)) {
+                    NavHost(
+                        navController = tabNav,
+                        startDestination = HomeTab.Overview.route,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(bottom = 88.dp),
+                    ) {
+                        composable(HomeTab.Overview.route) {
+                            GuestsScreen(
+                                viewModel = guestsVm,
+                                jobTracker = jobTracker,
+                                onOpenGuest = onOpenGuest,
+                                onCreateGuest = onCreateGuest,
+                                onLogout = onLogout,
+                            )
                         }
-                    },
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .navigationBarsPadding()
-                        .padding(bottom = 12.dp),
-                )
+                        composable(HomeTab.Backups.route) {
+                            val vm: BackupsViewModel = viewModel(
+                                factory = BackupsViewModel.factory(
+                                    container.api,
+                                    jobTracker,
+                                    container.l10n,
+                                    container.prefsStore,
+                                ),
+                            )
+                            BackupsScreen(viewModel = vm)
+                        }
+                        composable(HomeTab.Storage.route) {
+                            val vm: StorageViewModel = viewModel(
+                                factory = StorageViewModel.factory(
+                                    container.api,
+                                    container.l10n,
+                                    container.prefsStore,
+                                ),
+                            )
+                            StorageScreen(viewModel = vm)
+                        }
+                        composable(HomeTab.Tasks.route) {
+                            val vm: TasksViewModel = viewModel(
+                                factory = TasksViewModel.factory(
+                                    container.api,
+                                    container.l10n,
+                                    container.prefsStore,
+                                ),
+                            )
+                            TasksScreen(viewModel = vm)
+                        }
+                        composable(HomeTab.Media.route) {
+                            val vm: MediaViewModel = viewModel(
+                                factory = MediaViewModel.factory(
+                                    container.api,
+                                    container.l10n,
+                                    container.prefsStore,
+                                ),
+                            )
+                            MediaScreen(viewModel = vm)
+                        }
+                        composable(HomeTab.Apps.route) {
+                            val vm: MarketplaceViewModel = viewModel(
+                                factory = MarketplaceViewModel.factory(
+                                    container.l10n,
+                                    container.prefsStore,
+                                ),
+                            )
+                            MarketplaceScreen(viewModel = vm)
+                        }
+                        composable(HomeTab.Settings.route) {
+                            val vm: SettingsViewModel = viewModel(
+                                factory = SettingsViewModel.factory(
+                                    container.prefsStore,
+                                    container.serverProfileStore,
+                                    container.sessionStore,
+                                    container.credentialStore,
+                                    container.api,
+                                ),
+                            )
+                            SettingsScreen(
+                                viewModel = vm,
+                                onSwitchServer = onLogout,
+                            )
+                        }
+                    }
 
-                JobToastHost(
-                    tracker = jobTracker,
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .navigationBarsPadding()
-                        .padding(bottom = 100.dp),
-                )
-
-                val celebration by jobTracker.celebration.collectAsState()
-                SuccessBurstOverlay(
-                    celebration = celebration,
-                    onDismiss = jobTracker::clearCelebration,
-                )
+                    FloatingBottomNav(
+                        selectedRoute = current,
+                        onSelect = { tab ->
+                            tabNav.navigate(tab.route) {
+                                popUpTo(tabNav.graph.findStartDestination().id) { saveState = true }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        },
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .navigationBarsPadding()
+                            .padding(bottom = 12.dp),
+                    )
+                }
             }
         }
     }
-    } // CompositionLocalProvider
 }

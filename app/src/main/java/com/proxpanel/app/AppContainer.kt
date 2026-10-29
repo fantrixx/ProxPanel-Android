@@ -11,6 +11,7 @@ import com.proxpanel.app.util.L10n
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.MutableStateFlow
 
 class AppContainer(context: Context) {
     private val appContext = context.applicationContext
@@ -23,4 +24,7 @@ class AppContainer(context: Context) {
     val api = ApiClient(sessionStore)
     val l10n = L10n(appContext)
     val jobTracker = JobTracker(api, appScope, l10n)
+
+    /** When set, HomeShell switches to this tab route once (e.g. Tasks from a job toast). */
+    val pendingHomeTab = MutableStateFlow<String?>(null)
 }

@@ -80,6 +80,7 @@ data class GuestsUiState(
     val accent: AccentChoice = AccentChoice.Orange,
     val viewMode: NodesViewMode = NodesViewMode.Cards,
     val cluster: ClusterOverview = ClusterOverview(),
+    val clusterDashboardExpanded: Boolean = false,
     val kindFilter: GuestKindFilter = GuestKindFilter.All,
     val statusFilter: GuestStatusFilter = GuestStatusFilter.All,
     val loading: Boolean = true,
@@ -169,6 +170,11 @@ class GuestsViewModel(
             }
         }
         viewModelScope.launch {
+            prefsStore.clusterDashboardExpanded.collect { expanded ->
+                publishNow { it.copy(clusterDashboardExpanded = expanded) }
+            }
+        }
+        viewModelScope.launch {
             prefsStore.guestIcons.collect { icons ->
                 publishBackground { it.copy(guestIcons = icons) }
             }
@@ -219,6 +225,12 @@ class GuestsViewModel(
 
     fun setViewMode(mode: NodesViewMode) {
         viewModelScope.launch { prefsStore.setNodesViewMode(mode) }
+    }
+
+    fun toggleClusterDashboard() {
+        val next = !_state.value.clusterDashboardExpanded
+        publishNow { it.copy(clusterDashboardExpanded = next) }
+        viewModelScope.launch { prefsStore.setClusterDashboardExpanded(next) }
     }
 
     fun clearFilters() {

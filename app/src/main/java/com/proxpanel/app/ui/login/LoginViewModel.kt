@@ -25,7 +25,7 @@ data class LoginUiState(
     val username: String = "",
     val password: String = "",
     val realm: String = "pam",
-    val verifyTls: Boolean = false,
+    val verifyTls: Boolean = true,
     val rememberCredentials: Boolean = true,
     val profiles: List<ServerProfile> = emptyList(),
     val activeProfileId: String? = null,

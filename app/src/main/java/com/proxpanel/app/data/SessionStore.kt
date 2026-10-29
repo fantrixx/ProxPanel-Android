@@ -36,7 +36,7 @@ class SessionStore(private val context: Context) {
             proxmoxHost = prefs[Keys.proxmoxHost].orEmpty(),
             username = prefs[Keys.username].orEmpty(),
             realm = prefs[Keys.realm] ?: "pam",
-            verifyTls = prefs[Keys.verifyTls] ?: false,
+            verifyTls = prefs[Keys.verifyTls] ?: true,
             rememberCredentials = prefs[Keys.rememberCredentials] ?: true,
         )
     }

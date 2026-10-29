@@ -61,6 +61,8 @@
     <string name="cd_console">Console</string>
     <string name="cd_clear_search">Clear search</string>
     <string name="cd_view_info">About this screen</string>
+    <string name="cd_expand_cluster">Expand cluster overview</string>
+    <string name="cd_collapse_cluster">Collapse cluster overview</string>
 
     <!-- Screen help (inline info) -->
     <string name="info_guests">Overview of all VMs and containers in your cluster.\n\nThe cluster dashboard at the top shows node health, storage, HA, and recent tasks/jobs. Filter by status or type, search by name, pin favorites, and start, stop, or reboot from the list. Long-press a guest for quick actions, or tap to open details. Change logos via the icon picker. Pull down to refresh; live metrics pause while you scroll.</string>
@@ -400,7 +402,7 @@
     <string name="refresh_interval_slow_hint">Battery-friendly</string>
     <string name="refresh_interval_manual_label">Manual</string>
     <string name="refresh_interval_manual_hint">Pull to refresh only</string>
-    <string name="privacy_body">ProxPanel stores login credentials and settings only locally on this device (encrypted or in app preferences).\n\nThe app connects directly to your Proxmox server. No server data is sent to us or to third parties.\n\nOptionally, marketplace scripts are loaded from public sources. That creates a network connection to the respective catalog host.\n\nYou can uninstall the app at any time to remove all local data.</string>
+    <string name="privacy_body">ProxPanel stores login credentials and settings only locally on this device (passwords encrypted; session tickets in app preferences).\n\nThe app connects directly to your Proxmox server. Guest and cluster data stay between your device and that server — we do not operate a ProxPanel backend.\n\nOptionally, marketplace catalog/telemetry and service icons are loaded from public hosts (community-scripts.org and a public CDN). That creates network connections to those hosts only when you open Apps or show guest logos.\n\nYou can uninstall the app at any time to remove all local data.\n\nFor Google Play you must also publish a privacy policy URL in Play Console that matches this description.</string>
 
     <!-- Cluster bar -->
     <string name="cluster_dashboard_title">Cluster</string>

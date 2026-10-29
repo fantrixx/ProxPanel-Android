@@ -90,7 +90,7 @@ class ApiClient(
     private var username: String = ""
 
     @Volatile
-    private var client: OkHttpClient = buildClient(verifyTls = false)
+    private var client: OkHttpClient = buildClient(verifyTls = true)
 
     fun configure(
         baseUrl: String,

@@ -175,7 +175,7 @@ data class LoginPrefs(
     val proxmoxHost: String = "",
     val username: String = "",
     val realm: String = "pam",
-    val verifyTls: Boolean = false,
+    val verifyTls: Boolean = true,
     val rememberCredentials: Boolean = true,
 )
 
@@ -185,7 +185,7 @@ data class ServerProfile(
     val host: String,
     val username: String,
     val realm: String = "pam",
-    val verifyTls: Boolean = false,
+    val verifyTls: Boolean = true,
 )
 
 data class BackupScheduleJob(
