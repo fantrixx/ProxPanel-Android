@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ProxPanel — Privacy Policy / Datenschutzerklärung</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0a0c10;
+      --ink: #f2f5fa;
+      --muted: #94a0b4;
+      --accent: #ff7a1a;
+      --line: #2e3748;
+    }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+      line-height: 1.55;
+    }
+    main {
+      max-width: 44rem;
+      margin: 0 auto;
+      padding: 2.5rem 1.25rem 4rem;
+    }
+    h1 { font-size: 1.75rem; margin: 0 0 0.35rem; }
+    h2 { font-size: 1.15rem; margin: 2rem 0 0.6rem; color: var(--accent); }
+    p, li { color: var(--ink); }
+    .muted { color: var(--muted); }
+    .lang { margin: 1rem 0 2rem; }
+    .lang a { color: var(--accent); margin-right: 1rem; }
+    hr { border: 0; border-top: 1px solid var(--line); margin: 2.5rem 0; }
+    a { color: var(--accent); }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="lang">
+      <a href="#de">Deutsch</a>
+      <a href="#en">English</a>
+    </div>
+
+    <section id="de">
+      <h1>Datenschutzerklärung — ProxPanel</h1>
+      <p class="muted">Stand: 29. Oktober 2026 · Android-App <strong>ProxPanel</strong> (Paketname <code>com.proxpanel</code>)</p>
+
+      <h2>1. Verantwortlicher</h2>
+      <p>
+        Verantwortlicher für diese App ist der Anbieter von ProxPanel über den Google-Play-Eintrag.
+        Kontakt für Datenschutzfragen: über die GitHub-Issues des Projekts
+        <a href="https://github.com/fantrixx/ProxPanel-Android/issues">fantrixx/ProxPanel-Android</a>.
+      </p>
+
+      <h2>2. Kurzüberblick</h2>
+      <p>
+        ProxPanel ist ein Client zur Verwaltung deines eigenen Proxmox-Servers.
+        Die App betreibt <strong>kein eigenes Backend</strong> und verkauft keine Nutzerdaten.
+        Anmeldedaten und Einstellungen bleiben auf deinem Gerät. Clusterdaten werden
+        direkt zwischen deinem Gerät und dem von dir konfigurierten Proxmox-Host ausgetauscht.
+      </p>
+
+      <h2>3. Daten, die lokal auf dem Gerät gespeichert werden</h2>
+      <ul>
+        <li>Server-Profile (Host/URL, Benutzername, Realm)</li>
+        <li>Passwort / Token (verschlüsselt auf dem Gerät)</li>
+        <li>Session-Tickets / Auth-Status in App-Preferences</li>
+        <li>App-Einstellungen (z. B. Aktualisierungsintervall, Akzentfarbe, Ansichtsmodus, Favoriten, Icon-Zuordnungen)</li>
+      </ul>
+      <p>
+        Diese Daten verlassen das Gerät nicht an einen ProxPanel-Server, weil es keinen gibt.
+        Sie werden nur verwendet, um dich mit <em>deinem</em> Proxmox-Server zu verbinden und die UI zu personalisieren.
+      </p>
+
+      <h2>4. Datenverarbeitung über deinen Proxmox-Server</h2>
+      <p>
+        Nach dem Login sendet die App API-Anfragen an die von dir eingegebene Proxmox-URL
+        (typischerweise in deinem lokalen Netz oder über deine eigene Remote-Verbindung).
+        Dabei können u. a. verarbeitet werden: Gast-/VM-/Container-Status, Ressourcenwerte,
+        Backups, Storage, Tasks/Logs, Medienlisten und von dir ausgelöste Aktionen
+        (Start/Stop, Backup, Restore usw.).
+      </p>
+      <p>
+        Art und Umfang dieser Verarbeitung richten sich nach deiner Proxmox-Installation und
+        deinen Zugangsrechten. ProxPanel speichert diese Betriebsdaten nicht zentral.
+      </p>
+
+      <h2>5. Optionale Drittanbieter-Verbindungen</h2>
+      <p>Nur wenn du die entsprechenden Funktionen nutzt, stellt die App Verbindungen her zu:</p>
+      <ul>
+        <li>
+          <strong>Community Scripts / Marketplace:</strong>
+          Katalog und Installationszahlen von
+          <code>community-scripts.org</code> /
+          <code>db.community-scripts.org</code> /
+          <code>telemetry.community-scripts.org</code>
+          sowie Skript-Metadaten von GitHub (<code>raw.githubusercontent.com</code>).
+        </li>
+        <li>
+          <strong>Gast-Logos:</strong>
+          optionale Icon-Grafiken über
+          <code>cdn.jsdelivr.net</code> (dashboard-icons).
+        </li>
+      </ul>
+      <p>
+        Dabei kann die jeweilige Gegenstelle technische Verbindungsdaten (z. B. IP-Adresse, Zeitpunkt)
+        gemäß ihrer eigenen Datenschutzbestimmungen verarbeiten. ProxPanel übermittelt keine
+        Proxmox-Zugangsdaten an diese Dienste.
+      </p>
+
+      <h2>6. Keine Werbung, kein Tracking-SDK</h2>
+      <p>
+        Die App enthält keine Werbenetzwerke und keine Analytics-/Crash-SDKs von Drittanbietern
+        (Stand dieser Erklärung). Google Play kann im Rahmen der Installation und Updates eigene
+        Verarbeitungen vornehmen (siehe Googles Datenschutzhinweise).
+      </p>
+
+      <h2>7. Berechtigungen</h2>
+      <p>
+        ProxPanel benötigt Internetzugriff, um deinen Proxmox-Server und die optionalen
+        Katalog-/Icon-Hosts zu erreichen. Es werden keine Kontakte, Mikrofon-, Kameradaten
+        oder Standortzugriffe für den Kernzweck benötigt.
+      </p>
+
+      <h2>8. Speicherdauer und Löschung</h2>
+      <p>
+        Lokale App-Daten bleiben, bis du sie in der App löschst (z. B. Abmelden / Profile entfernen)
+        oder die App deinstallierst. Daten auf dem Proxmox-Server unterliegen deiner Server-Administration.
+      </p>
+
+      <h2>9. Kinder</h2>
+      <p>
+        Die App richtet sich an Administratoren und technisch versierte Nutzer und nicht
+        an Kinder unter 13 Jahren.
+      </p>
+
+      <h2>10. Änderungen</h2>
+      <p>
+        Diese Erklärung kann bei App-Updates angepasst werden. Die jeweils aktuelle Fassung
+        ist unter dieser URL abrufbar.
+      </p>
+    </section>
+
+    <hr />
+
+    <section id="en">
+      <h1>Privacy Policy — ProxPanel</h1>
+      <p class="muted">Effective: 29 October 2026 · Android app <strong>ProxPanel</strong> (package <code>com.proxpanel</code>)</p>
+
+      <h2>1. Controller</h2>
+      <p>
+        The publisher of ProxPanel on Google Play is responsible for this app.
+        Privacy contact: GitHub issues at
+        <a href="https://github.com/fantrixx/ProxPanel-Android/issues">fantrixx/ProxPanel-Android</a>.
+      </p>
+
+      <h2>2. Summary</h2>
+      <p>
+        ProxPanel is a client for managing <em>your</em> Proxmox server.
+        We do <strong>not</strong> operate a ProxPanel backend and do not sell user data.
+        Credentials and settings stay on your device. Cluster data is exchanged directly
+        between your device and the Proxmox host you configure.
+      </p>
+
+      <h2>3. Data stored locally on the device</h2>
+      <ul>
+        <li>Server profiles (host/URL, username, realm)</li>
+        <li>Password / token (encrypted on device)</li>
+        <li>Session tickets / auth state in app preferences</li>
+        <li>App preferences (refresh interval, accent color, view mode, favorites, icon mappings)</li>
+      </ul>
+      <p>
+        These data are not sent to a ProxPanel server (there is none). They are used only to
+        connect to your Proxmox host and personalize the UI.
+      </p>
+
+      <h2>4. Processing via your Proxmox server</h2>
+      <p>
+        After sign-in, the app sends API requests to the Proxmox URL you enter.
+        This may include guest/VM/container status, metrics, backups, storage, tasks/logs,
+        media lists, and actions you trigger (start/stop, backup, restore, etc.).
+        ProxPanel does not centrally store that operational data.
+      </p>
+
+      <h2>5. Optional third-party connections</h2>
+      <p>Only when you use the related features, the app may contact:</p>
+      <ul>
+        <li>
+          <strong>Community Scripts / Marketplace:</strong>
+          catalog and install counts from
+          <code>community-scripts.org</code> /
+          <code>db.community-scripts.org</code> /
+          <code>telemetry.community-scripts.org</code>
+          and script metadata from GitHub (<code>raw.githubusercontent.com</code>).
+        </li>
+        <li>
+          <strong>Guest logos:</strong>
+          optional icons via <code>cdn.jsdelivr.net</code> (dashboard-icons).
+        </li>
+      </ul>
+      <p>
+        Those hosts may process technical connection data under their own policies.
+        ProxPanel does not send your Proxmox credentials to them.
+      </p>
+
+      <h2>6. No ads / no tracking SDKs</h2>
+      <p>
+        The app does not include ad networks or third-party analytics/crash SDKs
+        (as of this policy). Google Play may process data related to install/updates under Google’s policies.
+      </p>
+
+      <h2>7. Permissions</h2>
+      <p>
+        Internet access is required to reach your Proxmox server and optional catalog/icon hosts.
+        Contacts, microphone, camera, and location are not required for core functionality.
+      </p>
+
+      <h2>8. Retention and deletion</h2>
+      <p>
+        Local app data remains until you remove it in the app (sign out / delete profiles)
+        or uninstall the app. Data on your Proxmox server is under your server administration.
+      </p>
+
+      <h2>9. Children</h2>
+      <p>The app is intended for administrators and technical users, not for children under 13.</p>
+
+      <h2>10. Changes</h2>
+      <p>This policy may be updated with app releases. The current version is available at this URL.</p>
+    </section>
+  </main>
+</body>
+</html>
