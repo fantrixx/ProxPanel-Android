@@ -4,15 +4,18 @@ import android.content.Context
 import androidx.annotation.StringRes
 import com.proxpanel.app.R
 import com.proxpanel.app.data.AccentChoice
+import com.proxpanel.app.data.AppLanguage
 import com.proxpanel.app.data.RefreshInterval
 
 /** Thin wrapper so ViewModels can resolve localized strings with the app locale. */
 class L10n(context: Context) {
     private val app = context.applicationContext
 
-    fun get(@StringRes id: Int): String = app.getString(id)
+    private fun localized(): Context = LocaleHelper.wrap(app)
 
-    fun get(@StringRes id: Int, vararg args: Any): String = app.getString(id, *args)
+    fun get(@StringRes id: Int): String = localized().getString(id)
+
+    fun get(@StringRes id: Int, vararg args: Any): String = localized().getString(id, *args)
 }
 
 @StringRes
@@ -41,4 +44,11 @@ fun AccentChoice.labelRes(): Int = when (this) {
     AccentChoice.Blue -> R.string.accent_blue
     AccentChoice.Teal -> R.string.accent_teal
     AccentChoice.Magenta -> R.string.accent_magenta
+}
+
+@StringRes
+fun AppLanguage.labelRes(): Int = when (this) {
+    AppLanguage.System -> R.string.language_system
+    AppLanguage.English -> R.string.language_english
+    AppLanguage.German -> R.string.language_german
 }

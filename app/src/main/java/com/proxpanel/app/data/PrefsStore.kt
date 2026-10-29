@@ -27,6 +27,19 @@ enum class AccentChoice(val id: String) {
     }
 }
 
+/** In-app UI language; System follows the device locale. */
+enum class AppLanguage(val id: String) {
+    System("system"),
+    English("en"),
+    German("de"),
+    ;
+
+    companion object {
+        fun fromId(id: String?): AppLanguage =
+            entries.firstOrNull { it.id == id } ?: System
+    }
+}
+
 enum class NodesViewMode(val id: String) {
     Cards("cards"),
     Grid("grid"),
@@ -63,6 +76,7 @@ class PrefsStore(context: Context) {
         val pinnedGuests = stringSetPreferencesKey("pinned_guests")
         val lastBackupStorage = stringPreferencesKey("last_backup_storage")
         val accent = stringPreferencesKey("accent_choice")
+        val appLanguage = stringPreferencesKey("app_language")
         val nodesView = stringPreferencesKey("nodes_view_mode")
         val refreshInterval = stringPreferencesKey("refresh_interval")
         val guestIcons = stringPreferencesKey("guest_icons")
@@ -75,6 +89,8 @@ class PrefsStore(context: Context) {
     val lastBackupStorage: Flow<String?> = ds.data.map { it[Keys.lastBackupStorage] }
 
     val accentChoice: Flow<AccentChoice> = ds.data.map { AccentChoice.fromId(it[Keys.accent]) }
+
+    val appLanguage: Flow<AppLanguage> = ds.data.map { AppLanguage.fromId(it[Keys.appLanguage]) }
 
     val nodesViewMode: Flow<NodesViewMode> = ds.data.map { NodesViewMode.fromId(it[Keys.nodesView]) }
 
@@ -109,6 +125,10 @@ class PrefsStore(context: Context) {
 
     suspend fun setAccentChoice(choice: AccentChoice) {
         ds.edit { it[Keys.accent] = choice.id }
+    }
+
+    suspend fun setAppLanguage(language: AppLanguage) {
+        ds.edit { it[Keys.appLanguage] = language.id }
     }
 
     suspend fun setNodesViewMode(mode: NodesViewMode) {

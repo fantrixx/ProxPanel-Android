@@ -17,4 +17,6 @@ bin/
 gen/
 out/
 *.keystore
+*.jks
 !debug.keystore
+keystore.properties

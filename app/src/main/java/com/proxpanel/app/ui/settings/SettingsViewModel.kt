@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.proxpanel.app.data.AccentChoice
 import com.proxpanel.app.data.ApiClient
+import com.proxpanel.app.data.AppLanguage
 import com.proxpanel.app.data.CredentialStore
 import com.proxpanel.app.data.LoginPrefs
 import com.proxpanel.app.data.PrefsStore
@@ -12,6 +13,8 @@ import com.proxpanel.app.data.RefreshInterval
 import com.proxpanel.app.data.ServerProfile
 import com.proxpanel.app.data.ServerProfileStore
 import com.proxpanel.app.data.SessionStore
+import android.content.Context
+import com.proxpanel.app.util.LocaleHelper
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -20,6 +23,7 @@ import kotlinx.coroutines.launch
 
 data class SettingsUiState(
     val accent: AccentChoice = AccentChoice.Orange,
+    val language: AppLanguage = AppLanguage.System,
     val refreshInterval: RefreshInterval = RefreshInterval.Default,
     val profiles: List<ServerProfile> = emptyList(),
     val activeProfileId: String? = null,
@@ -34,12 +38,14 @@ class SettingsViewModel(
 ) : ViewModel() {
     val state: StateFlow<SettingsUiState> = combine(
         prefsStore.accentChoice,
+        prefsStore.appLanguage,
         prefsStore.refreshInterval,
         serverProfileStore.profiles,
         serverProfileStore.activeProfileId,
-    ) { accent, interval, profiles, activeId ->
+    ) { accent, language, interval, profiles, activeId ->
         SettingsUiState(
             accent = accent,
+            language = language,
             refreshInterval = interval,
             profiles = profiles,
             activeProfileId = activeId,
@@ -52,6 +58,14 @@ class SettingsViewModel(
 
     fun setAccent(choice: AccentChoice) {
         viewModelScope.launch { prefsStore.setAccentChoice(choice) }
+    }
+
+    fun setLanguage(context: Context, language: AppLanguage, onApplied: () -> Unit) {
+        viewModelScope.launch {
+            prefsStore.setAppLanguage(language)
+            LocaleHelper.set(context.applicationContext, language)
+            onApplied()
+        }
     }
 
     fun setRefreshInterval(interval: RefreshInterval) {

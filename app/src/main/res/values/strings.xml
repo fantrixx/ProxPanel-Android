@@ -73,7 +73,7 @@
     <string name="info_tasks">Recent Proxmox tasks such as backups, power actions, migrations, and creates.\n\nFilter by status (running, done, failed) or type (backup, power, migrate…). Expand a row for the live task log. Pull down to refresh.</string>
     <string name="info_media">ISO images and LXC templates available on your storages.\n\nSwitch between ISOs and templates, search by name, and see which storage holds each file. Use these when creating a new VM or container.</string>
     <string name="info_apps">Community helper scripts for common apps (Docker, Home Assistant, and more).\n\nSort by most popular or A–Z, search the catalog, then copy the install command to run on your Proxmox host—or open the project page in the browser. Install counts come from public community telemetry.</string>
-    <string name="info_settings">App preferences for this device.\n\nSet the auto-refresh interval and accent color, and read the privacy notice. Credentials stay on the device. Sign out from the Overview screen.</string>
+    <string name="info_settings">App preferences for this device.\n\nSet language, auto-refresh interval, and accent color, and read the privacy notice. Credentials stay on the device. Sign out from the Overview screen.</string>
     <string name="info_create">Create a new VM or LXC on a chosen node.\n\nPick CPU, memory, disk, storage, network, and optionally an ISO or template. Review the summary before confirming—the create task then appears under Tasks and in the job banner.</string>
     <string name="info_detail">Control this guest: power, resources, network, snapshots, and backups.\n\nOpen the console, change the logo, watch live CPU/memory charts, and manage disks. Resource edits apply on the node; power actions show up as jobs under the title.</string>
 
@@ -392,6 +392,11 @@
     <string name="settings_refresh_subtitle">How often entries reload live</string>
     <string name="settings_accent_title">Accent color</string>
     <string name="settings_accent_subtitle">Primary color for the app</string>
+    <string name="settings_language_title">Language</string>
+    <string name="settings_language_subtitle">App language for all screens</string>
+    <string name="language_system">System default</string>
+    <string name="language_english">English</string>
+    <string name="language_german">Deutsch</string>
     <string name="settings_app_info_title">App info</string>
     <string name="settings_app_info_subtitle">Version &amp; legal</string>
     <string name="settings_info_app">App</string>

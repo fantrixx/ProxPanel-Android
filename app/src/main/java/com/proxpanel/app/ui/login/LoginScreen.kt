@@ -142,7 +142,6 @@ fun LoginScreen(
                     onValueChange = { v -> viewModel.update { it.copy(proxmoxHost = v) } },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
-                    placeholder = { Text(stringResource(R.string.login_placeholder_host)) },
                     keyboardOptions = KeyboardOptions(
                         keyboardType = KeyboardType.Uri,
                         imeAction = ImeAction.Next,
@@ -159,7 +158,6 @@ fun LoginScreen(
                     onValueChange = { v -> viewModel.update { it.copy(username = v) } },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
-                    placeholder = { Text(stringResource(R.string.login_placeholder_user)) },
                     keyboardOptions = KeyboardOptions(
                         capitalization = KeyboardCapitalization.None,
                         autoCorrectEnabled = false,

@@ -1059,37 +1059,28 @@ private fun CpuSparklineStub(values: List<Float>) {
     val nums = remember(values) { values.filter { it.isFinite() } }
     if (nums.size < 2) return
     val last = nums.last()
-    val dataMin = nums.minOrNull() ?: 0f
-    val dataMax = nums.maxOrNull() ?: 0f
     val color = when {
         last >= 85f -> ProxBad
         last >= 60f -> ProxWarn
         else -> ProxGood
     }
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(40.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            Text(
-                text = stringResource(R.string.metric_cpu),
-                style = MaterialTheme.typography.labelSmall,
-                color = muted,
-            )
-            Text(
-                text = "${last.toInt()}%",
-                style = MaterialTheme.typography.labelMedium,
-                color = color,
-            )
-        }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(40.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
         Text(
-            text = stringResource(R.string.cpu_spark_range, dataMin.toInt(), dataMax.toInt()),
+            text = stringResource(R.string.metric_cpu),
             style = MaterialTheme.typography.labelSmall,
             color = muted,
+        )
+        Text(
+            text = "${last.toInt()}%",
+            style = MaterialTheme.typography.labelMedium,
+            color = color,
         )
     }
 }

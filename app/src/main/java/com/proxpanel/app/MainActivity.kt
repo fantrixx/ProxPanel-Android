@@ -1,5 +1,6 @@
 package com.proxpanel.app
 
+import android.content.Context
 import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
@@ -45,11 +46,16 @@ import com.proxpanel.app.ui.shell.HomeShell
 import com.proxpanel.app.ui.shell.HomeTab
 import com.proxpanel.app.R
 import com.proxpanel.app.ui.theme.ProxPanelTheme
+import com.proxpanel.app.util.LocaleHelper
 import java.net.URLDecoder
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 
 class MainActivity : ComponentActivity() {
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(LocaleHelper.wrap(newBase))
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge(

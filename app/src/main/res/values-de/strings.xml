@@ -73,7 +73,7 @@
     <string name="info_tasks">Aktuelle Proxmox-Tasks wie Backups, Power-Aktionen, Migrationen und Creates.\n\nNach Status (laufend, fertig, fehlgeschlagen) oder Typ (Backup, Power, Migration…) filtern. Zeile aufklappen für Live-Log. Nach unten ziehen zum Aktualisieren.</string>
     <string name="info_media">ISO-Images und LXC-Templates auf deinen Storages.\n\nZwischen ISOs und Templates wechseln, nach Namen suchen und sehen, auf welchem Storage die Datei liegt. Nutze sie beim Anlegen neuer VMs oder Container.</string>
     <string name="info_apps">Community-Hilfsskripte für gängige Apps (Docker, Home Assistant und mehr).\n\nNach Beliebteste oder A–Z sortieren, Katalog durchsuchen, dann den Install-Befehl kopieren und auf dem Proxmox-Host ausführen—oder die Projektseite im Browser öffnen. Installationszahlen stammen aus öffentlicher Community-Telemetrie.</string>
-    <string name="info_settings">App-Einstellungen für dieses Gerät.\n\nAktualisierungsintervall und Akzentfarbe festlegen sowie den Datenschutzhinweis lesen. Zugangsdaten bleiben auf dem Gerät. Abmelden geht über die Übersicht.</string>
+    <string name="info_settings">App-Einstellungen für dieses Gerät.\n\nSprache, Aktualisierungsintervall und Akzentfarbe festlegen sowie den Datenschutzhinweis lesen. Zugangsdaten bleiben auf dem Gerät. Abmelden geht über die Übersicht.</string>
     <string name="info_create">Neue VM oder LXC auf einem gewählten Node anlegen.\n\nCPU, RAM, Disk, Storage, Netzwerk und optional ISO oder Template wählen. Zusammenfassung prüfen, bevor du bestätigst—der Create-Task erscheint danach unter Tasks und in der Job-Leiste.</string>
     <string name="info_detail">Diesen Gast steuern: Power, Ressourcen, Netzwerk, Snapshots und Backups.\n\nKonsole öffnen, Logo ändern, Live-CPU/RAM-Charts beobachten und Disks verwalten. Ressourcenänderungen gelten auf dem Node; Power-Aktionen erscheinen als Jobs unter dem Titel.</string>
 
@@ -392,6 +392,11 @@
     <string name="settings_refresh_subtitle">Wie oft Entries live nachgeladen werden</string>
     <string name="settings_accent_title">Akzentfarbe</string>
     <string name="settings_accent_subtitle">Primärfarbe der gesamten App</string>
+    <string name="settings_language_title">Sprache</string>
+    <string name="settings_language_subtitle">App-Sprache für alle Screens</string>
+    <string name="language_system">Systemstandard</string>
+    <string name="language_english">English</string>
+    <string name="language_german">Deutsch</string>
     <string name="settings_app_info_title">App-Info</string>
     <string name="settings_app_info_subtitle">Version &amp; rechtliche Hinweise</string>
     <string name="settings_info_app">App</string>

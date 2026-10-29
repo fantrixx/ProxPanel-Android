@@ -36,6 +36,7 @@ import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Policy
 import androidx.compose.material.icons.filled.Speed
@@ -56,7 +57,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import android.app.Activity
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -64,6 +67,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.proxpanel.app.BuildConfig
 import com.proxpanel.app.R
 import com.proxpanel.app.data.AccentChoice
+import com.proxpanel.app.data.AppLanguage
 import com.proxpanel.app.data.RefreshInterval
 import com.proxpanel.app.util.hintRes
 import com.proxpanel.app.util.labelRes
@@ -80,6 +84,8 @@ fun SettingsScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val haptics = rememberAppHaptics()
+    val context = LocalContext.current
+    val activity = context as? Activity
     var privacyOpen by remember { mutableStateOf(false) }
 
     Scaffold(
@@ -186,6 +192,22 @@ fun SettingsScreen(
                     onSelect = {
                         haptics.confirm()
                         viewModel.setAccent(it)
+                    },
+                )
+            }
+
+            SettingsSection(
+                icon = Icons.Default.Language,
+                title = stringResource(R.string.settings_language_title),
+                subtitle = stringResource(R.string.settings_language_subtitle),
+            ) {
+                LanguagePicker(
+                    selected = state.language,
+                    onSelect = { language ->
+                        haptics.confirm()
+                        viewModel.setLanguage(context, language) {
+                            activity?.recreate()
+                        }
                     },
                 )
             }
@@ -335,6 +357,51 @@ private fun RefreshIntervalPicker(
                         )
                     }
                 }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun LanguagePicker(
+    selected: AppLanguage,
+    onSelect: (AppLanguage) -> Unit,
+) {
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(ProxSpace.sm),
+        verticalArrangement = Arrangement.spacedBy(ProxSpace.sm),
+    ) {
+        AppLanguage.entries.forEach { language ->
+            val isSelected = language == selected
+            val bg by animateColorAsState(
+                if (isSelected) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.surfaceContainerHigh,
+                label = "lang-bg",
+            )
+            val fg by animateColorAsState(
+                if (isSelected) MaterialTheme.colorScheme.onPrimary
+                else MaterialTheme.colorScheme.onSurface,
+                label = "lang-fg",
+            )
+            val scale by animateFloatAsState(
+                if (isSelected) 1.04f else 1f,
+                animationSpec = spring(stiffness = Spring.StiffnessMedium),
+                label = "lang-scale",
+            )
+            Box(
+                modifier = Modifier
+                    .scale(scale)
+                    .clip(MaterialTheme.shapes.small)
+                    .background(bg)
+                    .clickable { onSelect(language) }
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+            ) {
+                Text(
+                    text = stringResource(language.labelRes()),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = fg,
+                )
             }
         }
     }
