@@ -44,6 +44,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.proxpanel.app.BuildConfig
 import com.proxpanel.app.R
 import com.proxpanel.app.ui.components.ProxCard
 import com.proxpanel.app.ui.components.ProxLoadingState
@@ -100,6 +101,15 @@ fun LoginScreen(
                     Text(
                         stringResource(R.string.login_tagline),
                         style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Text(
+                        stringResource(
+                            R.string.login_version,
+                            BuildConfig.VERSION_NAME,
+                            BuildConfig.VERSION_CODE,
+                        ),
+                        style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }

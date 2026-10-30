@@ -89,6 +89,7 @@
     <!-- Login -->
     <string name="login_checking_session">Sitzung prüfen…</string>
     <string name="login_tagline">Proxmox VE · mobil</string>
+    <string name="login_version">Version %1$s (%2$d)</string>
     <string name="login_field_server">Proxmox-Server</string>
     <string name="login_placeholder_host">192.168.1.10</string>
     <string name="login_field_username">Benutzername</string>
